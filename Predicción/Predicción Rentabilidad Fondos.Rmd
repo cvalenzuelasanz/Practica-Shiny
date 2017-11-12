@@ -1,0 +1,425 @@
+---
+title: "PredicciÃ³n Fondos Def"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Importar archivo y tratamiento del Dataset
+
+```{r}
+setwd("C:/Users/valen/Desktop/Master Datascience/Predicción/Clase01")
+fondos <- read.csv("./Datos/Fondos.csv", header=TRUE, sep=";", dec = ",")
+fix(fondos)
+```
+
+Quitamos las variables nominales: Nombre, ISIN y Gestora
+
+```{r}
+columnas <- c(2,5,6)
+fondos <- fondos[,-columnas]
+fix(fondos)
+```
+
+
+Resumen estadístico de las variables
+
+```{r}
+summary(fondos)
+```
+
+
+##Modificación variables. 
+Las variables Estilo_Inversión_RV y Capitaliz_media_bursatil al tener muchos NA's los sustituiremos por 0, al considerar que no hay exposición a RV en esos fondos (muchos fondos tienen nombre de bonos o similares)
+
+```{r}
+for (i in 1:length(fondos$Capitaliz_media_bursatil)){
+  if(is.na(fondos$Capitaliz_media_bursatil[i])){
+    fondos$Capitaliz_media_bursatil [i] = 0
+  }
+}
+for (i in 1:length(fondos$Estilo_inversion_RV)){
+  if(is.na(fondos$Estilo_inversion_RV[i])){
+    fondos$Estilo_inversion_RV[i] = 0
+  }
+}
+```
+
+
+# Primera Regresión
+
+```{r}
+regres01 <- lm(rent_1 ~ Volatilidad_3 + rent_3_anios:rent_en_el_anio + rent_en_el_anio , data=fondos)
+summary(regres01)
+```
+
+
+##Qqplot
+
+```{r}
+
+library(car)
+qqPlot(regres01, labels=row.names(fondos), id.method="identify",
+       simulate=TRUE, main="Q-Q Plot")
+```
+
+
+## Histograma
+```{r}
+residplot <- function(fit, nbreaks=10) {
+  z <- rstudent(fit)
+  hist(z, breaks=nbreaks, freq=FALSE,
+       xlab="Studentized Residual",
+       main="Distribution of Errors")
+  rug(jitter(z), col="brown")
+  curve(dnorm(x, mean=mean(z), sd=sd(z)),
+        add=TRUE, col="blue", lwd=2)
+  lines(density(z)$x, density(z)$y,
+        col="red", lwd=2, lty=2)
+  legend("topright",
+         legend = c( "Normal Curve", "Kernel Density Curve"),
+         lty=1:2, col=c("blue","red"), cex=.7)
+}
+
+residplot(regres01)
+```
+
+Como se puede ver gráficamente la concentración de los errores del modelo entorno a cero
+es superior a la de una distribución normal
+
+## Jarque vera
+```{r}
+vResid=resid(regres01)
+library(fBasics)
+jbTest(vResid)
+```
+## Shapiro-Wilk
+
+```{r}
+shapiro.test(vResid)
+
+
+```
+
+Es un estad?stico de orden.
+Es importante contrastar la normalidad
+
+## Homocedasticidad
+
+```{r}
+ncvTest(regres01)
+```
+
+```{r}
+spreadLevelPlot(regres01)
+```
+Nos sugiere el modelo elevar nuestras variables a 0.5334742 para mejorar la validez predictiva de nuestro modelo
+
+## Contrastación global hipótesis
+
+```{r}
+library(gvlma)
+gvmodel <- gvlma(regres01) 
+summary(gvmodel)
+```
+
+El modelo cumple los test de sesgo y de linealidad entre el predictor y la media de la función de la distribución.
+
+## Multicolinealidad
+
+```{r}
+vif(regres01)
+```
+
+```{r}
+sqrt(vif(regres01)) > 2
+
+```
+
+NO hay colinealidad entre nuestras variables.
+
+
+## Valores atípicos (outliers)
+
+
+```{r}
+# Assessing outliers
+outlierTest(regres01)
+```
+
+Valores Atípicos: el residuo asociado es grande pero no afecta mucho al modelo.
+Los outliers son: 48, 476, 173, 118, 6 y 423
+
+## Valores extremos
+
+```{r}
+#  Identifying high leverage points
+hat.plot <- function(fit) {
+  p <- length(coefficients(fit))
+  n <- length(fitted(fit))
+  plot(hatvalues(fit), main="Index Plot of Hat Values")
+  abline(h=c(2,3)*p/n, col="red", lty=2)
+  identify(1:n, hatvalues(fit), names(hatvalues(fit)))
+}
+hat.plot(regres01)
+```
+
+Valores Extremos: si está alejada del resto observaciones de la muestra.
+
+## Observaciones influyentes
+
+```{r}
+
+# Identifying influential observations
+
+# Cooks Distance D
+# identify D values > 4/(n-k-1) 
+cutoff <- 4/(nrow(fondos)-length(regres01$coefficients)-2)
+plot(regres01, which=4, cook.levels=cutoff)
+abline(h=cutoff, lty=2, col="red")
+```
+
+
+Los valores 6, 48  y 118 tenemos que eliminarlos porque son valores atípicos y nos destrozan el modelo.
+
+## valores añadidos
+
+```{r}
+# Added variable plots
+# add id.method="identify" to interactively identify points
+avPlots(regres01, ask=FALSE, id.method="identify")
+```
+
+#Modificación Dataset
+
+Vamos a modificar el dataset fondos
+
+Quitando outliers y observaciones influyentes:
+
+- outliers: 48, 476, 173, 118, 6 y 423
+
+- influyentes: 6, 48  y 118
+
+Como se puede apreciar las 3 variables influyentes son a su vez outliers.
+
+
+```{r}
+filas <- c(48,476,173,118,6,423)
+fondos2 <- fondos[-filas,]
+nrow(fondos2)
+
+```
+
+
+#Nueva regresión
+
+
+```{r}
+regres02 <- lm(rent_1 ~ Estilo_inversion_RV + Capitaliz_media_bursatil + Volatilidad_3 + rent_3_anios:rent_en_el_anio + rent_en_el_anio , data=fondos2)
+summary(regres02)
+```
+
+##Qqplot
+
+```{r}
+
+library(car)
+qqPlot(regres02, labels=row.names(fondos), id.method="identify",
+       simulate=TRUE, main="Q-Q Plot")
+```
+
+
+## Histograma
+```{r}
+residplot <- function(fit, nbreaks=10) {
+  z <- rstudent(fit)
+  hist(z, breaks=nbreaks, freq=FALSE,
+       xlab="Studentized Residual",
+       main="Distribution of Errors")
+  rug(jitter(z), col="brown")
+  curve(dnorm(x, mean=mean(z), sd=sd(z)),
+        add=TRUE, col="blue", lwd=2)
+  lines(density(z)$x, density(z)$y,
+        col="red", lwd=2, lty=2)
+  legend("topright",
+         legend = c( "Normal Curve", "Kernel Density Curve"),
+         lty=1:2, col=c("blue","red"), cex=.7)
+}
+
+residplot(regres02)
+```
+
+Como se puede ver gráficamente la concentración de los errores del modelo es mas parecido a la normal que en la anterior regresión.
+
+## Jarque vera
+```{r}
+vResid=resid(regres02)
+library(fBasics)
+jbTest(vResid)
+```
+## Shapiro-Wilk
+
+```{r}
+shapiro.test(vResid)
+```
+
+## Homocedasticidad
+
+```{r}
+ncvTest(regres02)
+```
+
+```{r}
+spreadLevelPlot(regres02)
+```
+Nos sugiere el modelo elevar nuestras variables a 0.5411552 para mejorar la validez predictiva de nuestro modelo
+
+## Contrastación global hipótesis
+
+```{r}
+library(gvlma)
+gvmodel <- gvlma(regres02) 
+summary(gvmodel)
+```
+
+Cumple las hipótesis de sesgo y de linealidad.
+
+## Multicolinealidad
+
+```{r}
+vif(regres02)
+```
+
+```{r}
+sqrt(vif(regres02)) > 2
+
+```
+
+No hay colinealidad entre nuestras variables.
+
+
+#Nuevo dataset:
+
+Creamos un nuevo dataset solo con las columnas que vamos a utilizar para predecir
+y sin los valores NAs.
+
+
+```{r}
+columnas2 <- c(1,10,11,14,16,19)
+```
+
+```{r}
+fondos3 <- na.omit(fondos2[columnas2])
+summary(fondos3)
+nrow(fondos3)
+```
+
+
+
+
+#Cross Validation:
+
+Primero dividemos el dataset siendo la mitad la muestra de entrenamiento
+
+
+```{r}
+library(ISLR)
+set.seed(250)
+numFondos <- nrow(fondos3)
+train <- sample(numFondos ,numFondos/2)
+
+
+
+
+
+
+```
+
+###Primera regresión
+
+Vemos el valor predictivo de la Primera regresión con la muestra
+y calculamos la media de los residuos al cuadrado para cada uno de los elementos de la muestra.
+
+```{r}
+set.seed(251)
+regres.train2 =lm(rent_1 ~ Volatilidad_3 + rent_3_anios:rent_en_el_anio + rent_en_el_anio , data = fondos3,subset =train )
+attach(fondos3)
+mean((rent_1 - predict(regres.train2 ,Auto))[-train ]^2)
+```
+
+###Segunda regresión
+Vemos el valor predictivo de la Primera regresión con la muestra
+y calculamos la media de los residuos al cuadrado para cada uno de los elementos de la muestra.
+
+```{r}
+
+regres.train <- lm(rent_1 ~ Estilo_inversion_RV + Capitaliz_media_bursatil + Volatilidad_3 + rent_3_anios:rent_en_el_anio + rent_en_el_anio , data = fondos3, subset = train)
+attach(fondos3)
+mean((rent_1 - predict(regres.train ,Auto))[-train ]^2)
+
+```
+
+Como se puede comprobar en el segundo modelo la media de errores al cuadrado es inferior al del primero.
+
+
+## Leave-One-Out Cross-Validation
+
+###Primera regresión
+```{r}
+glm.fit1 <- glm(rent_1 ~ Volatilidad_3 + rent_3_anios:rent_en_el_anio + rent_en_el_anio , data = fondos3,family = gaussian())
+
+library (boot)
+cv.err =cv.glm(fondos3,glm.fit1)
+cv.err$delta
+```
+
+
+###Segunda regresión
+```{r}
+glm.fit2 <- glm(rent_1 ~ Estilo_inversion_RV + Capitaliz_media_bursatil + Volatilidad_3 + rent_3_anios:rent_en_el_anio + rent_en_el_anio, data = fondos3,family = gaussian())
+
+library (boot)
+cv.err2 =cv.glm(fondos3,glm.fit2)
+cv.err2$delta
+```
+
+Es mejor el modelo 2 porque el valor de los errores cuadraticos medios es inferior
+lo hemos probado en doscientas regresiones
+
+
+## Kfold
+
+###Primera regresión
+```{r}
+glm.fit1=glm(rent_1 ~ Volatilidad_3 + rent_3_anios:rent_en_el_anio + rent_en_el_anio , data = fondos3,family = gaussian())
+
+
+library (boot)
+set.seed(1234)
+cv.err =cv.glm(fondos3,glm.fit1,K=200)
+cv.err$delta
+```
+
+k= 10 es que estamos haciendo diez regresiones
+los datos van cambiando porque se generan numeros aletorios
+
+###Segunda regresión
+
+```{r}
+glm.fit2=glm(rent_1 ~ Estilo_inversion_RV + Capitaliz_media_bursatil + Volatilidad_3 + rent_3_anios:rent_en_el_anio + rent_en_el_anio, data = fondos3, family = gaussian())
+set.seed(250)
+cv.err2 =cv.glm(fondos3,glm.fit2,K=10)
+cv.err2$delta
+```
+
+## Importancia relativa
+```{r}
+zData=data.frame(scale(fondos3))
+zlm.fit=lm(rent_1 ~ Estilo_inversion_RV + Capitaliz_media_bursatil + Volatilidad_3 + rent_3_anios:rent_en_el_anio + rent_en_el_anio,zData)
+coef(zlm.fit)
+```
+En este caso la rentabilidad en el año es la variable mas importante.

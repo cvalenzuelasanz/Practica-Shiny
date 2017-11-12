@@ -1,0 +1,305 @@
+---
+title: "Práctica 5 def"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Ejercicio 1
+
+Establecemos el directorio de trabajo
+```{r}
+setwd("C:/Users/valen/Desktop/Master Datascience/R/Prácticas")
+```
+
+
+Importamos el archivo students census del directorio
+
+```{r}
+student_census <- read.csv("student_census.csv",header=TRUE, sep=",")
+head(student_census)
+```
+
+
+
+Determinamos las posiciones de los estudiantes que juegan al Basketball
+
+Para ello utilizaos un bucle for que desde recorre desde el primer al último elemento de la tabla de student census,
+
+Si el valor de un elemento de la columna Physical es igual a Basketball, se añade al vector de posiciones con el número que es el orden del elemento dentro de la tabla.
+
+```{r}
+posiciones <- NULL
+for (i in (1:length(student_census$Physical))){
+  if(student_census$Physical[i] == "Basketball") {
+    posiciones <- c(posiciones,i)
+  }
+}
+```
+
+
+creamos una lista con las posiciones de los estudiantes que juegan al basket
+
+```{r}
+numero_estudiante <- posiciones
+numero_estudiante
+```
+
+
+Generamos números aleatorios para elegir 5 estudiantes de esa lista.
+
+Por ello implementamos la siguiente función:
+
+Partimos de un vector de seleccionados vacío y un contador a cero.
+
+Mientras que la longitud del vector sea superior a cinco,se seleccionara un numero aleatorio y se comprobara que ese número no está incluido previamente en el vector. Si está en el vector se volvera generar un número aleatorio hasta que no se encuentre en el vector, cuando el vector tenga cinco números parara.
+
+```{r}
+seleccionados <- NULL
+contador <- 0
+seleccion <- function(x){
+  seleccionados <- NULL
+  while (length(seleccionados)< 5){
+    numero <- as.integer(runif(1,1,length(x)))
+    if(!x[numero] %in% seleccionados){
+      seleccionados <- c(seleccionados,x[numero])}}
+  return(seleccionados)
+}
+```
+
+
+A la función selección le metemos como imput la lista de estudiantes y como podemos ver ningún número está repetido.
+
+```{r}
+seleccion(numero_estudiante)
+```
+
+#Ejercicio 2. Ordenación y regresión
+
+Filtrar en un data.frame las variables Height,Arm.Span, Foot.Size
+
+```{r}
+student_census2 <- data.frame(student_census$Height,student_census$Arm.Span,student_census$Foot.Size)
+head(student_census2)
+```
+
+Realizar correlaciones dos a dos
+
+```{r}
+matriz_correl <- cor(student_census2)
+matriz_correl
+```
+
+##Ordenar los datos según la estatura:
+
+Creamos un nuevo dataframe a partir de Student_census2 con los datos ordenasdos para ello utilizamos la función order y ponemos el campo Height que es la estatura.
+
+```{r}
+student_census3 <- student_census2[order(student_census$Height),]
+head(student_census3)
+```
+
+Como se puede comprobar los datos están ordenados de menor a mayor estatura.
+
+## Hacer un diagrama de barras que indique los resultados por provincias
+
+
+Creamos una tabla nueva con la provincia y el tamaño sin ordenar
+
+```{r}
+student_census4 <- table(student_census$Province,student_census$Height)
+```
+
+definimos los colores a  utilizar en el bar plot
+
+```{r}
+colores <- c("red", "orange", "blue", "yellow", "green","pink","brown","gray","lightsalmon","navy")
+```
+
+
+Construimos un stacked barplot que nos diga la altura y frecuencia por provincia.
+
+En el eje x: esta la altura
+En el eje y: la frecuencia
+Los colores vienen determinados por el vector de colores definido anteriormente
+
+```{r}
+barplot(student_census4, main = "Distribución altura por provincias", xlab = "Altura",
+        legend = rownames(student_census4),
+        col = colores)
+```
+
+#Ejercicio 3. Mapreduce, simulación.
+
+##Particionar el dataset en 20 subconjuntos
+
+
+
+En primer lugar creamos un vector vacío denominado clase:
+
+```{r}
+clase <- NULL
+
+```
+
+Para particionar el dataset de 200 elementos en 20 subconjuntos de forma ordenada, cada subconjunto tendrá 10 elementos con el mismo número.
+
+A continuación creamos un bucle que va del 1 al 20 (numero total de subconjuntos). Cada subconjunto tiene 10 elementos que comparten siempre el mismo número que es el número que tiene el iterador de referencia i. La longitud del subconjunto viene determinado por el iterador j.
+
+
+```{r}
+for (i in (1:20)){
+  for (j in (((10*(i-1))+1):(10*i))){
+    clase[j] <- i
+  }
+}
+clase
+```
+
+
+
+Creamos un nuevo dataframe que este formado por el dataframe student_census mas el campo clase
+
+```{r}
+datos <- data.frame(student_census,clase)
+head(datos)
+
+str(datos)
+
+```
+
+#Creamos subconjuntos de datos.
+
+```{r}
+subconjunto1 <- subset(datos,datos$clase==1)
+subconjunto1
+```
+
+
+Definimos el algoritmo quicksort
+
+```{r}
+
+quickSort <- function(vect) {
+  # Args:
+  #  vect: Numeric Vector
+  
+  # Stop if vector has length of 1
+  if (length(vect) <= 1) {
+    return(vect)
+  }
+  # Pick an element from the vector
+  element <- vect[4]
+  partition <- vect[-4]
+  # Reorder vector so that integers less than element
+  # come before, and all integers greater come after.
+  v1 <- partition[partition < element]
+  v2 <- partition[partition >= element]
+  # Recursively apply steps to smaller vectors.
+  v1 <- quickSort(v1)
+  v2 <- quickSort(v2)
+  return(c(v1, element, v2))
+}
+```
+
+
+#Ejercicio 5: Map reduce. Medidas en bloques.
+
+En primer lugar definimos un vector x
+
+```{r}
+x<- c(1:80, 78:34, 1,2,3,4,5,6,7,5,4,3,2)
+```
+
+La longitud del vector
+
+```{r}
+length(x)
+```
+
+Establecemos un número de bloques a generar
+
+```{r}
+n<-5
+```
+
+Definimos una función para un vector x en n número de bloques de idéntico tamaño.
+
+El tamaño del bloque va ser el resultado de dividir la longitud del vector entre el número de bloques.
+
+Hacemos un bucle que va desde el elemento cero hasta el tamaño del bloque -2.
+
+Se rellena una nueva lista que va desde la posición de inicio del bloque hasta la final (tamaño del bloque).
+
+```{r}
+divideenBloques <- function( x, n ){
+			tam<-length(x)%/%n
+			list<-NULL
+			
+			for (i in 0:(n-2)){
+					list<-c(list,c(i*tam+1, (i+1)*tam))
+					
+							}
+			list<-c(list,c(((i+1)*tam)+1, length(x)))
+			return(list)
+}
+lista<-divideenBloques(x,n)
+lista
+```
+
+
+Cremoa una función que genera un dataframe con dos columnas suma y tams. Suma es la suma de los elementos que hay en el bloque y tams el tamaño del bloque.
+
+La función se implementa de la siguiente manera se parte de unos vectores vacíos de suma y tams.
+
+Mediante un bucle for se establece el inicio el fin del bloque.
+
+Sumas la suma de los elementos del vector (desde el inicio a fin del bloque)
+
+Tams es  diferencia entre fin e inicio del bloque.
+
+
+```{r}
+i<-1
+pares_sumas<-function (lista, x, n){
+ sumas<-NULL
+ tams<-NULL
+ for (i in 0:(n-1)){
+		ini<-lista[i*2+1]
+		fin<-lista[i*2+2]
+		sumas<-c(sumas, sum(x[ini:fin]))
+		tams<-c(tams,fin-ini+1)
+		}
+return(data.frame(sumas, tams))
+}
+ps<-pares_sumas(lista, x, n)
+ps
+```
+
+El siguiente paso consiste en sumar todos los elementos de la columna suma y dividirlo entre la suma de los elementos de la columna tams de esta manera llegamos al resultado medio.
+
+```{r}
+reduce<-function(ps){
+resultado<- as.double(sum(ps$sumas)/sum(ps$tams))
+return(resultado)
+}
+resultado_media<-reduce(ps)
+
+resultado_media
+```
+
+#Ejercicio 6.
+
+Si l el <=que st y si la suma del intervalo que conforman l:h es igual a st, print el vector c(l,h).
+Entonces devuelve la función busca sobre(l+1,l+1,st)
+
+En cualquier otro caso, si la suma del intervalo l:h es < st, devuelve la función busca (l,h+1,st)).
+
+En cualquier otro caso retorna la función busca sobre l+1,l+1,st.
+
+Calcula SUM(in:fin)=100
+
+
+
