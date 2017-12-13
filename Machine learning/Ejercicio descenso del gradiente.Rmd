@@ -1,0 +1,382 @@
+---
+title: "Ejercicios Descenso del gradiente"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Ejercicio 1: Test the TestGradientDescent function with the test set (4_1_data.csv). Obtain the confusion matrix.
+
+
+Importamos el dataset del directorio de trabajo y hacemos un summary para ver con que tipo de datos estamos trabajando. En este caso al tratarse de las admisiones de unos estudiantes a una universidad, son el resultado de dos test y si finalmente fueron admitidos o no.
+
+```{r}
+data <- read.csv("C:/Users/valen/Desktop/Master Datascience/Machine Learning/4_1_data.csv")
+summary(data)
+```
+
+
+A continuacion representamos graficamente las notas de los candidatos y el color diferencia si han sido admitido (rojo) o no (negro)
+
+```{r}
+plot(data$score.1,data$score.2, col=as.factor(data$label),xlab = "Score-1", ylab = "Score-2")
+```
+
+Como puede obervar a simple vista, hay una relacion lineal positiva entre las notas de los test y la probabilidad de ser admitidos. Sin embargo se buscan individudos que hayan obtenido buenas notas en los dos Test, hay algunos con muy buenas notas en un test y muy baja en el otro que no han sido admitidos.
+
+Almacenamos en una matriz X los notas de los estudiantes en ambos test, ya que son las variables explicativas.
+```{r}
+X <- as.matrix(data[,c(1,2)])
+```
+
+Añadimos una nueva columna cuyo valor es uno para todas las observaciones, que es la constante de la regresion.
+
+```{r}
+X <- cbind(rep(1, nrow(X)), X)
+```
+
+En la matriz Y almancenemos la información sobre la variable a estimar: Admision de los estudiantes.
+
+```{r}
+Y <- as.matrix(data[,3])
+```
+
+##Separación de la población en muestras de entrenamiento y de test.
+
+Con la muestra de entrenamiento entrenamos el modelo y con la de test validamos los resultados del mismo, con elementos que no se encontraban en la regresión. (ver como sería su predicción con nuevos datos.)
+
+```{r}
+elementos <- seq(from=1,to=nrow(X),by = 1)
+set.seed(123)
+train1 <- sample(elementos,size = 0.8* nrow(X))
+```
+
+```{r}
+set.seed(1)
+train2 <- sample(elementos,size = 0.8* nrow(X))
+```
+
+
+```{r}
+X_Train1 <- X[train1,]
+X_Train2 <- X[train2,]
+```
+
+```{r}
+X_Test1 <- X[-train1,]
+X_Test2 <- X[-train2,]
+```
+
+
+```{r}
+Y_Train1 <- Y[train1,]
+Y_Train2 <- Y[train2,]
+```
+
+```{r}
+Y_Test1 <- Y[-train1,]
+Y_Test2 <- Y[-train2,]
+```
+
+Definimos unos parametros iniciales:
+
+Los definimos con valor cero y habrá tantos paramétros como variables explicativas tenga el modelo.
+
+```{r}
+initial_parameters <- rep(0,ncol(X))
+```
+
+Definimos la función sigmoide
+
+```{r}
+Sigmoid <- function(x) {
+  1/(1+ exp(-x))
+}
+```
+
+
+Definimos la funcion de coste
+
+```{r}
+CostFunction <- function(parameters, X, Y){
+  n <- nrow(X)
+  # function to apply (%*% matrix multiplication)
+  g <- Sigmoid(X %*% parameters)
+  J <- (1/n) * sum((-Y * log(g))- ((1-Y) * log(1-g)))
+  return(J)   
+}
+```
+
+
+Calculamos la funcion de coste con los parametros establecidos inicialmente
+
+```{r}
+CostFunction(initial_parameters,X,Y)
+```
+
+
+Si definimos todos los parametros a cero, la predicción es cero. El error es muy pequeño porque estamos acertando en muchos casos.
+
+
+Normalmente para redes neuronales, definir a ceros los parametros perjudica mucho al algoritmo porque el cero es un valor muy fuerte que perjudica mucho. Para definir algoritmos es mejor utilizar un número aleatorio.
+
+
+Con cada fase en la que baja el gradiente (la derivada), los parametros se acercan al valor óptimo (aquel que minimiza la función de coste)
+
+Obtenemos el descenso del gradiente mediante la función optim. En esta función hay que introducirle el número de parametros, la función de coste a minimizar (definida previamente), los datasets de trabajo (x e y) y el numero máximo de iteraciones.
+
+```{r}
+#We want to minimize the cost function. Then derivate this funcion
+
+TestGradientDescent <- function(iterations = 1200, X, Y) {
+  
+  # Initialize (b, W)
+  parameters <- rep(0, ncol(X))
+  # Check evolution
+  print(paste("Initial Cost Function value: ", 
+              convergence <- c(CostFunction(parameters, X, Y)), sep = ""))
+  
+  # updating (b, W) using gradient update
+  
+  # Derive theta using gradient descent using optim function
+  # Look for information about the "optim" function (there are other options)
+  parameters_optimization <- optim(par = parameters, fn = CostFunction, X = X, Y = Y, 
+                                   control = list(maxit = iterations))
+  #set parameters
+  parameters <- parameters_optimization$par
+  
+  # Check evolution
+  print(paste("Final Cost Function value: ", 
+              convergence <- c(CostFunction(parameters, X, Y)), sep = ""))
+
+ return(p = parameters) 
+}
+
+
+```
+
+
+
+
+Obtenemos los parametros con la dos muestras de entrenamiento
+
+```{r}
+parameters1 <- TestGradientDescent(X = X_Train1, Y = Y_Train1)
+```
+
+```{r}
+parameters2 <- TestGradientDescent(X = X_Train2, Y = Y_Train2)
+```
+
+
+
+
+#Obtención de la predicción
+
+
+Obtenemos la predicción al multiplicar los elementos que hay en la matriz X_TEST, que son las características de los individuos sobre los que se va a hacer el test y los parámetros obtenidos en la muestra de entrenamiento.
+
+```{r}
+prediccion_test1 <- as.data.frame(Sigmoid(X_Test1 %*% parameters1))
+```
+
+```{r}
+prediccion_test2 <- as.data.frame(Sigmoid(X_Test2 %*% parameters2))
+```
+
+
+Hacemos un bucle para asignar resultados a las probabilidades obtenidas en la predicción. Si la probabilidad es mas cercana a 1 asignamos 1 y si es mas cercana a cero, asignamos el cero.
+
+
+```{r}
+resultado1 <- NULL
+for (i in 1:nrow(prediccion_test1)){
+   ifelse(1- prediccion_test1[i,1]< 0.5,resultado1 <- c(resultado1,1),resultado1 <- c(resultado1,0))
+}
+prediccion_test1[,"resultado1"] <- resultado1
+```
+
+```{r}
+resultado2 <- NULL
+for (i in 1:nrow(prediccion_test2)){
+   ifelse(1- prediccion_test2[i,1]< 0.5,resultado2 <- c(resultado2,1),resultado2 <- c(resultado2,0))
+}
+prediccion_test2[,"resultado1"] <- resultado2
+```
+
+
+```{r}
+prediccion_test1 <- prediccion_test1[,2]
+```
+
+```{r}
+prediccion_test2 <- prediccion_test2[,2]
+```
+
+
+Representación de la matriz de confusion en una tabla
+
+```{r}
+table(prediccion_test1,Y_Test1)
+```
+
+```{r}
+table(prediccion_test2,Y_Test2)
+```
+
+
+
+Como se puede observar nuestro algoritmo comete 3 errores con la primera semillas y 2 errores con la segunda semilla. 
+
+Los dos clasifica al menos individuo como admitidos, cuando realmente no lo son y en ambos casos a un inviduo como no admitido, cuando realmente si es admitido.
+
+El accuracy del modleo para la primera muestra es de un 85% y del segundo modelo del 90%.
+
+Vemos por tanto la inestabilidad de nuestra regresion, dada el poco volumen de datos.
+
+## Ejercicio 2: Obtener un gráfico representando como la función de coste evoluciona dependiendo del número de iteraciones.
+
+
+Para ver la evolución del coste según el numero de iteraciones, vamos a realizar el siguente bucle. Que consiste en acumular el número de iteraciones y el coste para cada una de las iteraciones.
+
+```{r}
+iterations <- 500
+coste1 <- NULL
+posicion1 <- NULL
+contador <- 0
+parameters <- rep(0, ncol(X))
+for (i in 1: iterations){
+  contador <- contador + 1
+  parameters_optimization <- optim(par = parameters, fn = CostFunction, X = X_Train1, Y = Y_Train1, 
+                                   control = list(maxit = contador))
+  parameters <- parameters_optimization$par
+  posicion1 <- c(posicion1,i)
+  coste1 <- c(coste1,CostFunction(parameters, X_Train1, Y_Train1))
+}
+```
+
+
+Almacenamos en un Dataframe el número de iteraciones (columna posicion) y el coste.
+
+```{r}
+iter_coste1 <- as.data.frame(posicion1)
+iter_coste1[,"coste"] <- coste1
+```
+
+Representación gráfica de la relación entre número de iteraciones y coste
+
+```{r}
+plot(x= iter_coste1$posicion1,iter_coste1$coste,main="Relación entre número de iteraciones y coste", xlab="Número de iteraciones",ylab="Coste")
+```
+
+Como se puede observar el coste se reduce significativamete en el primer número de iteraciones y estabiliza antes de llegar a 100 iteraciones. 
+
+
+Si queremos observar a partir de que número de iteraciones se estabiliza el coste, representamos gráficamente sólo los 80 primeros elementos de ambas variables.
+
+```{r}
+plot(x= iter_coste1$posicion1[1:80],iter_coste1$coste[1:80],main="Relación entre número de iteraciones y coste", xlab="Número de iteraciones",ylab="Coste")
+```
+
+Este grafico es mucho mas representativo que el anterior. Observamos como el coste permanece mas o menos constante hasta las 30 iteraciones. Desde las 30 hasta las 50 iteraciones el coste disminuye significativamente, reduciendose el descenso hasta las 60 iteraciones, punto en el que se produce la estabilización del coste.
+
+
+##Utilizando la función sgd
+
+Cargamos la librería sgd (stochastic gradient descent)
+
+```{r}
+library(sgd)
+```
+
+Juntamos X e Y de entrenamiento en un mismo Dataframe
+
+
+La función sgd por defecto solo lleva a cabo 100 iteraciones
+```{r}
+parameters_optimization <- sgd(X_Train1,Y_Train1,model = "glm")
+```
+
+
+```{r}
+coeficientes <- parameters_optimization$coefficients
+```
+
+
+```{r}
+CostFunction(coeficientes,X_Train1,Y_Train1)
+```
+
+```{r}
+prediccion_Y_Test1 <- X_Test1%*%coeficientes
+prediccion<- NULL
+for (i in (1:nrow(prediccion_Y_Test1))){
+  ifelse (prediccion_Y_Test1[i,1] < 0.5, prediccion <- c(prediccion,0),prediccion <- c(prediccion,1))
+}
+table(prediccion,Y_Test1)
+```
+
+Como se puede apreciar el accuracy del modelo sería de un 80%, clasificando a cuatro individuos como aceptados cuando no son admitidos.
+
+##Implementacion del descenso del gradiente
+
+
+
+```{r}
+# GD function
+
+grad <- function(x, y, theta) {
+
+  gradient <- (1 / nrow(y)) * (t(x) %*% (1/(1 + exp(-x %*% t(theta))) - y))
+
+  return(t(gradient))
+
+}
+
+gradient.descent <- function(x, y, alpha=0.1, num.iterations=500, threshold=1e-6, output.path=FALSE) {
+
+    # Add x_0 = 1 as the first column
+
+    m <- if(is.vector(x)) length(x) else nrow(x)
+
+    if(is.vector(x) || (!all(x[,1] == 1))) x <- cbind(rep(1, m), x)
+
+    if(is.vector(y)) y <- matrix(y)
+
+    x <- apply(x, 2, as.numeric)
+
+    num.features <- ncol(x)
+
+    theta <- matrix(rep(0, num.features), nrow=1) 
+
+    # Values at each iteration
+
+    theta.path <- theta
+
+    for (i in 1:num.iterations) {
+
+      theta <- theta - alpha * grad(x, y, theta)
+
+      if(all(is.na(theta))) break
+
+      theta.path <- rbind(theta.path, theta)
+
+      if(i > 2) if(all(abs(theta - theta.path[i-1,]) < threshold)) break 
+
+    }
+
+    if(output.path) return(theta.path) else return(theta.path[nrow(theta.path),])
+
+}
+
+```
+
+
+```{r}
+theta <- gradient.descent(x=as.matrix(X_Train1), y=as.matrix(Y_Train1), output.path=TRUE)
+prediccion_train <- X_Train1%*%theta[2,]
+
+```
+

@@ -1,0 +1,414 @@
+---
+title: "Untitled"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Wrangler
+
+Cargamos las librerias
+
+```{r}
+library(ggplot2)
+library(forecast)
+library(astsa)
+library(plotly)
+library(ggfortify)
+library(tseries)
+library(gridExtra)
+library(xts)
+```
+
+
+
+Importamos los datos del directorio
+```{r}
+rawData <- read.csv("C:/Users/valen/Desktop/Master Datascience/Predicción/Prediccion Ibex/infomercado.csv",header=FALSE, dec=",",sep = "")
+```
+
+Quitamos los NAs y valores duplicados
+
+```{r}
+pData=na.omit(rawData)
+pData=unique(rawData)
+pData = pData[-1,]
+```
+
+
+
+Creamos una serie temporal con los siguientes valores:
+
+V7 precio de cierre
+V3 fecha
+
+
+
+```{r}
+nData <- xts((pData$V7),order.by=as.POSIXct(strptime(pData$V3,"%d/%m/%y")))
+colnames(nData)=c("Close")
+```
+
+
+Quitamos los NAs
+```{r}
+nData <- ts(na.omit(nData))
+```
+
+
+```{r}
+mData=xts((pData$V7),order.by=as.POSIXct(strptime(pData$V3,"%d/%m/%y")))
+colnames(mData)=c("Close")
+```
+
+
+Utilizamos un bucle para calcular la rentabilidad diaria del índice (hemos utilizado la rentabilidad logarítmica) y almacenarla en un vector que utilizaremos mas adelante.
+
+```{r}
+vector <- 0
+for (i in (2:length(nData))){
+  vector <- c(vector,log(nData[i]/nData[i-1]))
+}
+
+```
+
+Cambiamos el nombre de la columna mData
+```{r}
+colnames(mData)=c("Close")
+```
+
+Incluimos el vector con las rentabilidades dentro del XTS mData.
+```{r}
+mData$Rentabilidad <- vector
+```
+
+Hacemos una representación grafica de mData.
+```{r}
+tsSp <- autoplot(mData, 
+    main = "Plot of Ibex 35 Time Series(1990-2017)", 
+    ts.colour = "turquoise4", size=0.4) + 
+theme(panel.background = element_rect(fill = "gray98"),
+        axis.line   = element_line(colour="black"),
+        axis.line.x = element_line(colour="gray"),
+        axis.line.y = element_line(colour="gray")) + 
+    labs(x = "Year", y = "Closing Values")
+
+ggplotly(tsSp)
+```
+
+
+
+Nuesto objetivo inicial es construir un modelo para predecir el valor del IBEX35 para el 31.12.2017.
+
+Hemos seguido el siguiente enfoque: quedarnos con la rentabilidad diaria que ha obtenido el IBEX en los meses de diciembre desde el inicio de la serie hasta el dato mas reciente. Intentaremos predecir la rentabilidad del indice en los 14 dias que quedan hasta el 29 de Diciembre (ultimo dia de cotizacion del año 2017) en base al comportamiento del indice en el mes de Diciembre del resto de los años.
+
+
+
+```{r}
+Rent_IBEX_35 <- mData[,2]
+```
+
+Almacenamos la rentabilidades de los meses de diciembre en un nuevo objeto
+
+```{r}
+Rent_IBEX_35_dic <- rbind(Rent_IBEX_35["1990-12-01/1990-12-31"],Rent_IBEX_35["1991-12-01/1991-12-31"],Rent_IBEX_35["1992-12-01/1992-12-31"],Rent_IBEX_35["1993-12-01/1993-12-31"],Rent_IBEX_35["1994-12-01/1994-12-31"],Rent_IBEX_35["1995-12-01/1995-12-31"],Rent_IBEX_35["1996-12-01/1996-12-31"],Rent_IBEX_35["1997-12-01/1997-12-31"],Rent_IBEX_35["1998-12-01/1998-12-31"],Rent_IBEX_35["1999-12-01/1999-12-31"],Rent_IBEX_35["2000-12-01/2000-12-31"],Rent_IBEX_35["2001-12-01/2001-12-31"],Rent_IBEX_35["2002-12-01/2002-12-31"],Rent_IBEX_35["2003-12-01/2003-12-31"],Rent_IBEX_35["2004-12-01/2004-12-31"],Rent_IBEX_35["2005-12-01/2005-12-31"],Rent_IBEX_35["2006-12-01/2006-12-31"],Rent_IBEX_35["2007-12-01/2007-12-31"],Rent_IBEX_35["2008-12-01/2008-12-31"],Rent_IBEX_35["2009-12-01/2009-12-31"],Rent_IBEX_35["2010-12-01/2010-12-31"],Rent_IBEX_35["2011-12-01/2011-12-31"],Rent_IBEX_35["2012-12-01/2012-12-31"],Rent_IBEX_35["2013-12-01/2013-12-31"],Rent_IBEX_35["2014-12-01/2014-12-31"],Rent_IBEX_35["2015-12-01/2015-12-31"],Rent_IBEX_35["2016-12-01/2016-12-31"],Rent_IBEX_35["2017-12-01/2017-12-08"])
+```
+
+
+```{r}
+library(dplyr)
+```
+
+Transformamos el objeto XTS con las rentabilidades diarias de los meses de diciembre en un objeto TS (sin fecha)
+
+```{r}
+TSRent_IBEX_35_dic <- ts(Rent_IBEX_35_dic)
+```
+
+
+De acuerdo con el autoplot anterior, hemos considerado valores atípicos aquellos días en los que la rentabilidad ha sido bien inferior a un 3% o superior a un 3%.
+
+Aquellos valores que tengan una rentabilidad entre -3% y 3% se consideran TRUE y el resto FALSE.
+```{r}
+TSRent_IBEX_35_dic_outliers <- between(TSRent_IBEX_35_dic,-0.03,0.03)
+```
+
+
+
+```{r}
+Fecha_dic <- index(Rent_IBEX_35_dic)
+```
+
+Almacenamos en un Dataframe las fechas, rentabilidades y la categoria Outlier.
+
+```{r}
+DF_Rent_IBEX_35_dic <- data.frame(Fecha_dic,TSRent_IBEX_35_dic_outliers,TSRent_IBEX_35_dic)
+```
+
+
+
+Almacenamos en un Dataframe los outliers (aquellos que son FALSE en la columna TSRent_IBEX_35_dic_outliers)
+```{r}
+DF_Rent_IBEX_35_dic_outliers <- DF_Rent_IBEX_35_dic[DF_Rent_IBEX_35_dic[,2] == FALSE,]
+```
+
+Creamos un Dataframe sin los outliers (aquellos que son TRUE en la columna TSRent_IBEX_35_dic_outliers)
+
+```{r}
+DF_Rent_IBEX_35_dic_sin_outliers <- DF_Rent_IBEX_35_dic[DF_Rent_IBEX_35_dic[,2] == TRUE,]
+```
+
+Creamos un nuevo objeto TS con la rentabilidad sin los outliers.
+
+```{r}
+TSRent_IBEX_35_dic_sin_outliers <- ts(DF_Rent_IBEX_35_dic_sin_outliers$Rentabilidad)
+```
+
+
+
+```{r}
+TrainIBEX35 <- TSRent_IBEX_35_dic_sin_outliers
+```
+
+
+#Modelo ETS
+
+```{r}
+etsfit <- ets(TrainIBEX35)
+etsfit
+```
+
+Nos sale un modelo con errores aditivos pero sin tendencia ni componente estacional
+
+```{r}
+residFitEts <- ggplot(data=etsfit, aes(residuals(etsfit))) + 
+    geom_histogram(aes(y =..density..), 
+    col="black", fill="white") +
+geom_density(col=1) +
+theme(panel.background = element_rect(fill = "gray98"),
+    panel.grid.minor = element_blank(),
+    axis.line   = element_line(colour="gray"),
+    axis.line.x = element_line(colour="gray")) +
+ggtitle("Plot of IBEX35 ETS Model Residuals") 
+
+ggplotly(residFitEts)
+```
+
+Como se puede observar graficamente los residuos se comportan con una distribucion similar a la normal con un algunas desviaciones.
+
+
+
+
+Hacemos la prediccion mediante la funcion forecast.
+
+```{r}
+f.ets <- forecast(etsfit,level=(c(75,25)))
+```
+
+Como podemos apreciar el modelo ETS no sugiere una rentabilidad diaria constante de un 0,07%.
+
+```{r}
+f.ets$mean
+```
+
+Al ser un modelo a corto plazo, solo nos ofrece predicciones a 10 periodos. Pero al ser valores constantes suponemos que la prediccion será igual para los periodos 10 a 14.
+
+
+
+
+```{r}
+StartDate <- as.Date("2017-12-11")
+EndDate <- as.Date("2017-12-29")
+myDays <- seq(StartDate , EndDate, by = "day")
+excludeDays <- c("sábado", "domingo")
+myWeekDays <- subset(myDays, !weekdays(myDays) %in% excludeDays)
+firstMonday <- which(weekdays(head(myWeekDays, 5)) == "lunes")
+lastFriday <- length(myWeekDays) - 5 + 
+              which(weekdays(tail(myWeekDays, 5)) == "viernes")
+myCompleteWeeks <- myWeekDays[firstMonday:lastFriday]
+```
+
+Quitamos el dia 25 de Diciembre del vector my weeks al ser un día festivo
+
+```{r}
+myCompleteWeeks <- myCompleteWeeks[-11]
+```
+
+
+```{r}
+predicciones_rentabilidad_ETS <- rep(f.ets$mean[1],14)
+```
+
+Almacenamos en un vector, las prediccciones del indice: valor del indice en el día anterior por la rentabilidad del dia.
+
+```{r}
+vector_valores_ETS <- c(as.numeric(mData["2017-12-08",1]),rep(1,length(myCompleteWeeks)))
+for (i in (1:length(myCompleteWeeks))){
+  resultado <- vector_valores_ETS[i] * exp(predicciones_rentabilidad_ETS[i])
+  vector_valores_ETS[i+1] <- resultado
+}
+
+```
+
+
+```{r}
+predicciones_valores_ETS <- vector_valores_ETS[-1]
+```
+
+
+
+Almacenamos en un Dataframe los resultados de nuestras predicciones del modelo ETS
+
+```{r}
+DF_predicciones_ETS <- data.frame(myCompleteWeeks,predicciones_valores_ETS,predicciones_rentabilidad_ETS,rep("Prediccion",length(myCompleteWeeks)))
+```
+
+```{r}
+colnames(DF_predicciones_ETS) <- c("Fecha","Close","Rentabilidad","Tipo")
+```
+
+
+```{r}
+Fecha_total <- index(mData)
+```
+
+```{r}
+Tipo <- rep("Real",length(Fecha_total))
+```
+
+
+```{r}
+DF_resultados <- data.frame(Fecha_total,as.numeric(mData[,1]),Tipo)
+colnames(DF_resultados) <- c("Fecha","Close","Tipo")
+```
+
+
+```{r}
+DF_resultados_ETS <- rbind(DF_resultados, DF_predicciones_ETS[,-3])
+```
+
+Reducimos el Dataframe  a todo el ejercicio 2017 para que sea mas fácil ver la representacion grafica de la prediccion
+
+```{r}
+DF_resultados_ETS_2017 <- DF_resultados_ETS[6599:6854,]
+```
+
+
+```{r}
+grafico_ETS <- ggplot(DF_resultados_ETS_2017) + geom_line(aes(x= Fecha, y = Close, colour = Tipo))+ ggtitle("Plot of IBEX35 ETS Prediction")
+ggplotly(grafico_ETS)
+```
+
+
+
+#Modelo ARIMA
+
+```{r}
+auto.arima(TrainIBEX35)
+```
+
+
+```{r}
+arimafit <- Arima(TrainIBEX35,order = c(1,0,1), include.drift = TRUE)
+summary(arimafit)
+```
+
+Se trata de un modelo Arima con retardo y media móvil de un periodo.
+
+```{r}
+residFit <- ggplot(data=arimafit, aes(residuals(arimafit))) + 
+    geom_histogram(aes(y =..density..), 
+    col="black", fill="white") +
+geom_density(col=1) +
+theme(panel.background = element_rect(fill = "gray98"),
+    panel.grid.minor = element_blank(),
+    axis.line   = element_line(colour="gray"),
+    axis.line.x = element_line(colour="gray")) +
+ggtitle("Plot of IBEX35 ARIMA Model Residuals") 
+
+
+ggplotly(residFit)
+```
+
+Como se puede observar graficamente los residuos se comportan con una distribucion similar a la normal.
+
+```{r}
+Box.test(arimafit$residuals,lag=4, fitdf=3, type="Lj")
+Box.test(arimafit$residuals,lag=8, fitdf=3, type="Lj")
+Box.test(arimafit$residuals,lag=12, fitdf=3, type="Lj")
+```
+
+
+```{r}
+fit_arima <- forecast(arimafit,h=14)
+```
+
+
+```{r}
+predicciones_rentabilidad_arima <- fit_arima$mean[1:14]
+```
+
+Almacenamos en un vector, las prediccciones del indice: valor del indice en el día anterior por la rentabilidad del dia.
+
+
+```{r}
+vector_valores_arima <- c(as.numeric(mData["2017-12-08",1]),rep(1,length(myCompleteWeeks)))
+for (i in (1:length(myCompleteWeeks))){
+  resultado <- vector_valores_arima[i] * exp(predicciones_rentabilidad_arima[i])
+  vector_valores_arima[i+1] <- resultado
+}
+
+```
+
+
+```{r}
+predicciones_valores_arima <- vector_valores_arima[-1]
+```
+
+
+Almacenamos en un Dataframe los resultaods de nuestras predicciones del modelo ARIMA
+
+```{r}
+DF_predicciones_arima <- data.frame(myCompleteWeeks,predicciones_valores_arima,predicciones_rentabilidad_arima,rep("Prediccion",length(myCompleteWeeks)))
+```
+
+
+```{r}
+colnames(DF_predicciones_arima) <- c("Fecha","Close","Rentabilidad","Tipo")
+```
+
+
+
+```{r}
+DF_resultados_arima<- rbind(DF_resultados, DF_predicciones_arima[,-3])
+```
+
+Reducimos el Dataframe  a todo el ejercicio 2017 para que sea mas fácil ver la representacion grafica de la prediccion
+
+```{r}
+DF_resultados_arima_2017 <- DF_resultados_arima[6599:6854,]
+```
+
+
+```{r}
+grafico_arima <- ggplot(DF_resultados_arima_2017) + geom_line(aes(x= Fecha, y = Close, colour = Tipo)) + ggtitle("Plot of IBEX35 ARIMA Prediction")
+ggplotly(grafico_arima)
+```
+
+
+#Resultado final de la prediccion:
+
+
+Nuestro enfoque final va a ser ponderar los resultados de los modelos ETS y ARIMA. Dandole mas peso al ETS (70%) al ser un modelo que predice mejor a corto plazo que los modelos ARIMA (30%).
+
+```{r}
+Prediccion_def <- 0.7 * predicciones_valores_ETS + 0.30 * predicciones_valores_arima 
+Prediccion_def[14]
+```
+
+El valor final de nuestra prediccion a 31.12.2017 es de 10407.78 Puntos básicos.
+
