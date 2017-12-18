@@ -40,14 +40,16 @@ ui <- dashboardPage(
                                             value = 10),
                              numericInput("cantidad_vendida",
                                           label = "Sell",
-                                          value = 5)
+                                          value = 5),
+                             dateInput("dia_comienzo","start day",value="2017-01-01")
                       ),
                       column(6,numericInput("porcentaje_compras",
                                             label = "% of the days",
                                             value = 10),
                              numericInput("porcentaje_ventas",
                                           label = "% of the days",
-                                          value = 2)
+                                          value = 2),
+                             dateInput("dia_fin","End day",value="2017-12-01")
                              )
                     )))),
       tabItem(tabName = "Limits_strategy",
