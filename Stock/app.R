@@ -34,24 +34,22 @@ ui <- dashboardPage(
               fluidPage(
                 mainPanel(
                   verbatimTextOutput("muestra"),
-                  fluidRow(
-                    column(6,tags$div(style= "position: absolute; left: 10%; top: 0%",
-                                    tags$input(type= "text",ID= "cantidad_comprada",
-                                               tags$label(style = "position: absolute; right: 110%; botton:0","buy"),
-                                               value = 1))),
-                    column(6,tags$div(style= "position: absolute; right: 40%; top: 0%",
-                                    tags$input(type="text",ID= "porcentaje_dias_compra",
-                                               tags$label(style="position: float; left: 100%; botton: 0%","% of days"),
-                                               value=0)))),
-                  fluidRow(
-                    column(6,dateInput("start_date","start date",value = "2017-01-01"))
-                           )))),
-                  
-              
-                  # tags$div(style = "position: absolute; left: 100%; top: 100",
-                  #   dateInput("end_date","end date",value = "2017-12-01")),
-                  # actionButton("Run_random","Run")
-                  # ))),
+                    fluidRow(
+                      column(6,numericInput("cantidad_comprada",
+                                            label = "Buy",
+                                            value = 10),
+                             numericInput("cantidad_vendida",
+                                          label = "Sell",
+                                          value = 5)
+                      ),
+                      column(6,numericInput("porcentaje_compras",
+                                            label = "% of the days",
+                                            value = 10),
+                             numericInput("porcentaje_ventas",
+                                          label = "% of the days",
+                                          value = 2)
+                             )
+                    )))),
       tabItem(tabName = "Limits_strategy",
               fluidPage(
                 sidebarLayout(
