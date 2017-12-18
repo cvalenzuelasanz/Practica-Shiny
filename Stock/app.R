@@ -35,12 +35,14 @@ ui <- dashboardPage(
                 mainPanel(
                   verbatimTextOutput("muestra"),
                  
-                  tags$div(style = "position: absolute; right: 0; botton:0",
-                            tags$input(type= "text",ID= "cantidad_comprada",
-                             tags$label(class = "right","buy"),
-                             value = 1))
-                  # tags$div( style="position: absolute; left: %; botton: 100%",
-                  #                     numericInput("numero_dias_compra",label="% of the days",value=0))
+                  tags$div(style= "position: absolute; left: 10%; top: 0%",
+                    tags$input(type= "text",ID= "cantidad_comprada",
+                             tags$label(style = "position: absolute; right: 110%; botton:0","buy"),
+                             value = 1)),
+                  tags$div(style= "position: absolute; right: 40%; top: 0%",
+                    tags$input(type="text",ID= "porcentaje_dias_compra",
+                           tags$label(style="position: float; left: 100%; botton: 0%","% of days"),
+                           value=0))
                   # tags$div(style = "position: absolute; right: 100%; top: 100",
                   #          dateInput("start_date","start date",value = "2017-01-01")),
                   # tags$div(style = "position: absolute; left: 100%; top: 100",
