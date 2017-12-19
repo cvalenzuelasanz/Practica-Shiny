@@ -6,14 +6,19 @@ library(shinydashboard)
 library(plotly)
 library(quantmod)
 
-# Define UI for application that draws a histogram
+#Definimos las fechas del historico
+
+valores_ibex <- read_excel("C:/Users/valen/Desktop/Master Datascience/Visualizacion/Practicas/Stock/MscDatascience/Stock/Valores IBEX.xlsx", col_names = FALSE)
+valores_ibex <- as.data.frame(valores_ibex)
+nombres <- valores_ibex[,1]
+valores <- valores_ibex[,2]
+
 ui <- dashboardPage(
   dashboardHeader(),
   dashboardSidebar(
     selectInput(inputId = "stocks",
                 label = "Select stock",
-                choices = list("Google" = "GOOG","Apple"= "AAPL","Microsoft"= "MSFT","Banco Santander" = "SAN.MC",
-                               "BBVA" = "BBVA.MC"),
+                choices = list(nombres = valores),
                 selected = 1
     ),
     dateRangeInput("dates", 
@@ -22,10 +27,8 @@ ui <- dashboardPage(
                    end = as.character(Sys.Date())),
     sidebarMenu(
       menuItem("Ramdom",tabName = "Random_strategy",icon=icon("line_chart")),
-      menuItem("Limits",tabName = "Limits_strategy",icon=icon("balance-scale")),
-      menuItem("Programming",tabName = "Programming_strategy",icon=icon("edit"))
+      menuItem("Limits",tabName = "Limits_strategy",icon=icon("balance-scale"))
     )
-    
   ),
   dashboardBody(
     box(plotOutput("plot")),
@@ -33,37 +36,52 @@ ui <- dashboardPage(
       tabItem(tabName = "Random_strategy",
               fluidPage(
                 mainPanel(
-                  verbatimTextOutput("muestra"),
-                    fluidRow(
-                      column(6,numericInput("cantidad_comprada",
-                                            label = "Buy",
-                                            value = 10),
-                             numericInput("cantidad_vendida",
-                                          label = "Sell",
-                                          value = 5),
-                             dateInput("dia_comienzo","start day",value="2017-01-01")
-                      ),
-                      column(6,numericInput("porcentaje_compras",
-                                            label = "% of the days",
-                                            value = 10),
-                             numericInput("porcentaje_ventas",
+                  fluidRow(
+                    column(6,numericInput("cantidad_compra_random",
+                                          label = "Buy",
+                                          value = 10),
+                           numericInput("cantidad_venta_random",
+                                        label = "Sell",
+                                        value = 5),
+                           dateInput("dia_comienzo","start day",value="2017-01-01"),
+                           actionButton("Run_random","Run")
+                    ),
+                    column(6,numericInput("porcentaje_dias_compra_random",
                                           label = "% of the days",
-                                          value = 2),
-                             dateInput("dia_fin","End day",value="2017-12-01")
-                             )
-                    )))),
+                                          value = 10),
+                           numericInput("porcentaje_dias_venta_random",
+                                        label = "% of the days",
+                                        value = 2),
+                           dateInput("dia_fin","End day",value="2017-12-01")
+                           
+                    ),
+                    verbatimTextOutput("resultado_random")
+                  )))),
       tabItem(tabName = "Limits_strategy",
               fluidPage(
-                sidebarLayout(
-                  sidebarPanel(),
-                  mainPanel()
-                  ))),
-      tabItem(tabName = "Programming_strategy",
-              fluidPage(
-                sidebarLayout(
-                  sidebarPanel(),
-                  mainPanel()
-                )))
+                mainPanel(
+                  fluidRow(
+                    column(12,numericInput("precio_venta_limits",
+                                           label = "Sell when stock price reaches",
+                                           value = 10)),
+                    column(4,
+                           numericInput("cantidad_compra_limits1",
+                                        label = "Buy",
+                                        value = 5),
+                           numericInput("cantidad_compra_limits2",
+                                        label = "Buy",
+                                        value = 5),
+                           actionButton("Run_limit","Run")),
+                    column(8, 
+                           numericInput("precio_compra_limits1",
+                                        label = "When stock price reaches",
+                                        value = 5),
+                           numericInput("precio_compra_limits2",
+                                        label = "When stock price reaches",
+                                        value = 5)
+                    ),
+                    verbatimTextOutput("resultado_limits")
+                  ))))
     )
   )
 )
@@ -84,7 +102,7 @@ server <- function(input, output) {
   
   output$plot <- renderPlot({
     
-    chartSeries(dataInput(), theme = chartTheme("white"),
+    chartSeries(dataInput(), theme = chartTheme("white"),name=valores_ibex[valores_ibex[,2]== input$stocks,1],
                 type = "line", TA = NULL)
   })
   
