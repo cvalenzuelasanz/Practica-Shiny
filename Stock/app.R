@@ -108,34 +108,62 @@ server <- function(input, output) {
   })
   
   output$resultado_random <- renderText({
+    #creamos un xts con los precios medios de cada día del periodo de la estrategia aleatoria
+    #Hemos considerado los precios medios como la media entre el precio mínimo y el precio máximo
+    #(Columnas 2 y 3) del objeto reactivo dataInput
     df_precios_medios <- ((isolate(dataInput())[paste(isolate(input$dia_comienzo),isolate(input$dia_fin),sep="/")][,2]+
                            isolate(dataInput())[paste(isolate(input$dia_comienzo),isolate(input$dia_fin),sep="/")][,3])/2)
+    #contamos el numero de dias que tiene la estategia aleatoria
     numero_dias <- nrow(df_precios_medios)
+    #Hacemos un muestreo del numero de dias de compra
+    #en funcion del porcentaje de dias de compra definido por el usuario
     dias_compra <- sample(numero_dias,numero_dias*(isolate(input$porcentaje_dias_compra_random)/100))
+    #del xts df precios medios nos quedamos solo con los precios medios de los dias muestreados
+    #los multiplicamos por la cantidad de compra definida por el usuario
+    #de esta manera obtenemos el importe comprado cada dia
     df_compra <- df_precios_medios[c(dias_compra),]* isolate(input$cantidad_compra_random)
+    #Calculamos el precio medio de compra como la suma de las cantidades compradas cada dia
+    #dividido entre el numero de dias que se han comprado acciones
     precio_compra_medio <- sum(df_compra)/(isolate(input$cantidad_compra_random)*(numero_dias*(isolate(input$porcentaje_dias_compra_random)/100)))
     
+    #Hacemos un muestreo del numero de dias de venta
+    #en funcion del porcentaje de dias de compra definido por el usuario
     dias_venta <- sample(numero_dias,numero_dias*(isolate(input$porcentaje_dias_venta_random)/100))
+    #del xts df precios medios nos quedamos solo con los precios medios de los dias muestreados
+    #los multiplicamos por la cantidad de venta definida por el usuario
+    #de esta manera obtenemos el importe vendido cada dia
     df_ventas <- df_precios_medios[c(dias_venta),]* isolate(input$cantidad_venta_random)
+    #Calculamos el precio medio de venta como la suma de las cantidades vendidas cada dia
+    #dividido entre el numero de dias que se han vendido acciones
     precio_venta_medio <- sum(df_ventas)/(isolate(input$cantidad_venta_random)*(numero_dias*(isolate(input$porcentaje_dias_venta_random)/100)))
     
+    #El resultado de esta estrategia es la diferencia entre el precio medio de venta y el precio medio compra
+    #multiplicado por el numero de dias que se han realizado ventas
+    #no hemos tenido en cuenta para este analisis si hay titulos por vender (posicion larga del usuario) o 
+    #si por el contrario se han vendido mas títulos de los comprados (posicion corta)
     resultado_rd <- (precio_venta_medio-precio_compra_medio)*(numero_dias*(isolate(input$porcentaje_dias_venta_random)/100))
     
+    #Cuando el usuario utilice el action button se hara un print del resultado obtenido con esta estrategia
     if (!is.null(valores$random)){
-      print(resultado_rd)
+      print(paste0("You would gain/loss"," ",resultado_rd,"€"))
     }
     
     
   })
 
   output$resultado_limits <- renderText({
+    #Calculamos el importe de compra total como la suma del importe de compra con el primer y segundo precio
     importe_compra_limits <- isolate(input$precio_compra_limits1)* isolate(input$cantidad_compra_limits1) +
-      isolate(input$precio_compra_limits2) * isolate(input$cantidad_compra_limits2)
+    isolate(input$precio_compra_limits2) * isolate(input$cantidad_compra_limits2)
+    #Calculamos el importe de venta como el precio de venta mas la cantidad total de titulos comprados (m1 + m2)
     importe_venta_limits <-  isolate(input$precio_venta_limits) * (isolate(input$cantidad_compra_limits1)+isolate(input$cantidad_compra_limits2))
+    
+    #El resultado de la estrategia es la diferencia entre importe total de compra y venta
     resultado_lm <- importe_venta_limits - importe_compra_limits
     
+    #Cuando el usuario utilice el action button se hara un print del resultado obtenido con esta estrategia
     if (!is.null(valores$limit)){
-      print(resultado_lm)
+      print(paste0("You would gain/loss"," ",resultado_lm,"€"))
     }
     
   })
