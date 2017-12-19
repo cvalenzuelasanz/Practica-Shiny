@@ -90,9 +90,7 @@ ui <- dashboardPage(
 server <- function(input, output) {
   
   
-  valores <- reactiveValues(
-    
-  )
+  valores <- reactiveValues(random= NULL,limit= NULL)
   
   dataInput <- reactive({
     getSymbols(input$stocks, src = "yahoo", 
@@ -102,31 +100,43 @@ server <- function(input, output) {
   })
   
   observeEvent(input$Run_random,{
-    
+    valores$random <- rnorm(1)
+  })
+  
+  observeEvent(input$Run_limit,{
+    valores$limit <- rnorm(1)
   })
   
   output$resultado_random <- renderText({
-    df_precios_medios <- ((dataInput()[paste(input$dia_comienzo,input$dia_fin,sep="/")][,2]+
-                           dataInput()[paste(input$dia_comienzo,input$dia_fin,sep="/")][,3])/2)
+    df_precios_medios <- ((isolate(dataInput())[paste(isolate(input$dia_comienzo),isolate(input$dia_fin),sep="/")][,2]+
+                           isolate(dataInput())[paste(isolate(input$dia_comienzo),isolate(input$dia_fin),sep="/")][,3])/2)
     numero_dias <- nrow(df_precios_medios)
-    dias_compra <- sample(numero_dias,numero_dias*(input$porcentaje_dias_compra_random/100))
-    df_compra <- df_precios_medios[c(dias_compra),]* input$cantidad_compra_random
-    precio_compra_medio <- sum(df_compra)/(input$cantidad_compra_random*(numero_dias*(input$porcentaje_dias_compra_random/100)))
+    dias_compra <- sample(numero_dias,numero_dias*(isolate(input$porcentaje_dias_compra_random)/100))
+    df_compra <- df_precios_medios[c(dias_compra),]* isolate(input$cantidad_compra_random)
+    precio_compra_medio <- sum(df_compra)/(isolate(input$cantidad_compra_random)*(numero_dias*(isolate(input$porcentaje_dias_compra_random)/100)))
     
-    dias_venta <- sample(numero_dias,numero_dias*(input$porcentaje_dias_venta_random/100))
-    df_ventas <- df_precios_medios[c(dias_venta),]* input$cantidad_venta_random
-    precio_venta_medio <- sum(df_ventas)/(input$cantidad_venta_random*(numero_dias*(input$porcentaje_dias_venta_random/100)))
+    dias_venta <- sample(numero_dias,numero_dias*(isolate(input$porcentaje_dias_venta_random)/100))
+    df_ventas <- df_precios_medios[c(dias_venta),]* isolate(input$cantidad_venta_random)
+    precio_venta_medio <- sum(df_ventas)/(isolate(input$cantidad_venta_random)*(numero_dias*(isolate(input$porcentaje_dias_venta_random)/100)))
     
-    resultado_rd <- (precio_venta_medio-precio_compra_medio)*(numero_dias*(input$porcentaje_dias_venta_random/100))
-    print(resultado_rd)
+    resultado_rd <- (precio_venta_medio-precio_compra_medio)*(numero_dias*(isolate(input$porcentaje_dias_venta_random)/100))
+    
+    if (!is.null(valores$random)){
+      print(resultado_rd)
+    }
+    
     
   })
 
   output$resultado_limits <- renderText({
-    importe_compra_limits <- input$precio_compra_limits1 * input$cantidad_compra_limits1 + input$precio_compra_limits2 * input$cantidad_compra_limits2
-    importe_venta_limits <-  input$precio_venta_limits * (input$cantidad_compra_limits1+input$cantidad_compra_limits2)
+    importe_compra_limits <- isolate(input$precio_compra_limits1)* isolate(input$cantidad_compra_limits1) +
+      isolate(input$precio_compra_limits2) * isolate(input$cantidad_compra_limits2)
+    importe_venta_limits <-  isolate(input$precio_venta_limits) * (isolate(input$cantidad_compra_limits1)+isolate(input$cantidad_compra_limits2))
     resultado_lm <- importe_venta_limits - importe_compra_limits
-    print(resultado_lm)
+    
+    if (!is.null(valores$limit)){
+      print(resultado_lm)
+    }
     
   })
   
