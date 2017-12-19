@@ -5,6 +5,7 @@ library(ggplot2)
 library(shinydashboard)
 library(plotly)
 library(quantmod)
+library(readxl)
 
 #Definimos las fechas del historico
 
@@ -111,8 +112,8 @@ server <- function(input, output) {
     #creamos un xts con los precios medios de cada día del periodo de la estrategia aleatoria
     #Hemos considerado los precios medios como la media entre el precio mínimo y el precio máximo
     #(Columnas 2 y 3) del objeto reactivo dataInput
-    df_precios_medios <- ((isolate(dataInput())[paste(isolate(input$dia_comienzo),isolate(input$dia_fin),sep="/")][,2]+
-                           isolate(dataInput())[paste(isolate(input$dia_comienzo),isolate(input$dia_fin),sep="/")][,3])/2)
+    df_precios_medios <- ((dataInput()[paste(isolate(input$dia_comienzo),isolate(input$dia_fin),sep="/")][,2]+
+                           dataInput()[paste(isolate(input$dia_comienzo),isolate(input$dia_fin),sep="/")][,3])/2)
     #contamos el numero de dias que tiene la estategia aleatoria
     numero_dias <- nrow(df_precios_medios)
     #Hacemos un muestreo del numero de dias de compra
@@ -152,18 +153,99 @@ server <- function(input, output) {
   })
 
   output$resultado_limits <- renderText({
-    #Calculamos el importe de compra total como la suma del importe de compra con el primer y segundo precio
-    importe_compra_limits <- isolate(input$precio_compra_limits1)* isolate(input$cantidad_compra_limits1) +
-    isolate(input$precio_compra_limits2) * isolate(input$cantidad_compra_limits2)
-    #Calculamos el importe de venta como el precio de venta mas la cantidad total de titulos comprados (m1 + m2)
-    importe_venta_limits <-  isolate(input$precio_venta_limits) * (isolate(input$cantidad_compra_limits1)+isolate(input$cantidad_compra_limits2))
     
-    #El resultado de la estrategia es la diferencia entre importe total de compra y venta
-    resultado_lm <- importe_venta_limits - importe_compra_limits
+    df_precios_limits <- na.omit((dataInput()[,2]+dataInput()[,3])/2)
     
+    fechas_umbral_compra_limits1 <- NULL
+    for (i in (2:nrow(df_precios_limits))){
+      contador1 <- i-1
+      if (df_precios_limits[i,] <= isolate(input$precio_compra_limits1) && df_precios_limits[contador1,] > isolate(input$precio_compra_limits1)){
+        fechas_umbral_compra_limits1 <- c(fechas_umbral_compra_limits1,i)
+      }
+    }
+    fechas_umbral_compra_limits2 <- NULL
+    for (j in (2:nrow(df_precios_limits))){
+      contador2 <- j-1
+      if (df_precios_limits[j,] <= isolate(input$precio_compra_limits2) && df_precios_limits[contador2,] > isolate(input$precio_compra_limits2)){
+        fechas_umbral_compra_limits2 <- c(fechas_umbral_compra_limits2,j)
+    }}
+    
+      fechas_umbral_venta_limits <- NULL
+    for (k in (2:nrow(df_precios_limits))){
+      contador3 <- k-1
+      if (df_precios_limits[k,] >= isolate(input$precio_venta_limits) && df_precios_limits[contador3,] < isolate(input$precio_venta_limits)){
+        fechas_umbral_venta_limits <- c(fechas_umbral_venta_limits,k)
+      }}
+      
+      #Definimos los valores, vectores y contadores que vamos a utilizar en el bucle
+      resultado_neto_1 <- NULL
+      resultado_neto_2 <- NULL
+      resultado_ventas_1 <- NULL
+      resultado_ventas_2 <- NULL
+      total_compra_limits_1 <- NULL
+      total_compra_limits_2 <- NULL
+      resultado_ventas <- NULL
+      contador_1 <- 1
+      contador_compra_1 <- c(1)
+      contador_compra_2 <- c(1)
+      contador_while_1 <- 0
+      contador_while_2 <- 0
+      contador_2 <- 1
+      resultado <- NULL
+      precios_compra_limits2 <- NULL
+      importe_compra_limits2 <- NULL
+      cantidad_total_compra_limits2 <- NULL
+      precios_compra_limits1 <- NULL
+      importe_compra_limits1 <- NULL
+      cantidad_total_compra_limits1 <- NULL
+      
+      for (l in (1:length(fechas_umbral_venta_limits))){
+        while(fechas_umbral_venta_limits[l] > fechas_umbral_compra_limits1[contador_1] && 
+              contador_1<length(fechas_umbral_compra_limits1+2)){
+          for (t in (1:length(fechas_umbral_compra_limits1))){
+            if(fechas_umbral_venta_limits[l] > fechas_umbral_compra_limits1[t]){
+              precios_compra_limits1 <- c(precios_compra_limits1,df_precios_limits[fechas_umbral_compra_limits1[t],])
+              cantidad_total_compra_limits1 <- c(cantidad_total_compra_limits1,isolate(input$cantidad_compra_limits1))
+              importe_compra_limits1 <- c(importe_compra_limits1, precios_compra_limits1[t]*isolate(input$cantidad_compra_limits1))
+              contador_1 <- contador_1 +1
+            }
+          }
+          contador_while_1 <- contador_while_1+1
+          contador_compra_1 <- c(contador_compra_1,length(importe_compra_limits1))
+        }
+        while(fechas_umbral_venta_limits[l] > fechas_umbral_compra_limits2[contador_2] && 
+              contador_2<length(fechas_umbral_compra_limits2+2)){
+          for (t in (1:length(fechas_umbral_compra_limits2))){
+            if(fechas_umbral_venta_limits[l] > fechas_umbral_compra_limits2[t]){
+              precios_compra_limits2 <- c(precios_compra_limits2,df_precios_limits[fechas_umbral_compra_limits2[t],])
+              cantidad_total_compra_limits2 <- c(cantidad_total_compra_limits2,isolate(input$cantidad_compra_limits2))
+              importe_compra_limits2 <- c(importe_compra_limits2, precios_compra_limits2[t]*isolate(input$cantidad_compra_limits2))
+              contador_2 <- contador_2 +1
+            }
+          }
+          contador_while_2 <- contador_while_2+1
+          contador_compra_2 <- c(contador_compra_2,length(importe_compra_limits2))
+        }
+        
+        if(length(contador_compra_1)>l){
+          resultado_ventas_1 <- c(resultado_ventas_1,sum(cantidad_total_compra_limits1[contador_compra_1[l+1]-contador_compra_1[l]+1])* df_precios_limits[fechas_umbral_venta_limits[l],])
+          total_compra_limits_1 <- c(total_compra_limits_1,sum(importe_compra_limits1[contador_compra_1[l+1]-contador_compra_1[l]+1]))
+          resultado_neto_1 <- c(resultado_neto_1,resultado_ventas_1[l]-total_compra_limits_1[l])
+        }
+        if(length(contador_compra_1)>l){
+          resultado_ventas_2 <- c(resultado_ventas_2,sum(cantidad_total_compra_limits2[contador_compra_2[l+1]-contador_compra_2[l]+1])* df_precios_limits[fechas_umbral_venta_limits[l],])
+          total_compra_limits_2 <- c(total_compra_limits_2,sum(importe_compra_limits2[contador_compra_2[l+1]-contador_compra_2[l]+1]))
+          resultado_neto_2 <- c(resultado_neto_2,resultado_ventas_2[l]-total_compra_limits_2[l])
+        }
+      }
+      
+      resultado_total <- sum(resultado_neto_1) + sum(resultado_neto_2)
+      
+    
+  
     #Cuando el usuario utilice el action button se hara un print del resultado obtenido con esta estrategia
     if (!is.null(valores$limit)){
-      print(paste0("You would gain/loss"," ",resultado_lm,"€"))
+      print(paste0("You would gain/loss"," ",round(resultado_total,2),"€"))
     }
     
   })
