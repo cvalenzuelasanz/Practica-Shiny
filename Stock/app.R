@@ -19,8 +19,7 @@ ui <- dashboardPage(
     selectInput(inputId = "stocks",
                 label = "Select stock",
                 choices = list(nombres = valores),
-                selected = 1
-    ),
+                selected = 1),
     dateRangeInput("dates", 
                    "Date range",
                    start = "2013-01-01", 
@@ -43,7 +42,7 @@ ui <- dashboardPage(
                            numericInput("cantidad_venta_random",
                                         label = "Sell",
                                         value = 5),
-                           dateInput("dia_comienzo","start day",value="2017-01-01"),
+                           dateInput("dia_comienzo","start day",format = "yyyy-mm-dd",value="2017-01-01"),
                            actionButton("Run_random","Run")
                     ),
                     column(6,numericInput("porcentaje_dias_compra_random",
@@ -52,7 +51,7 @@ ui <- dashboardPage(
                            numericInput("porcentaje_dias_venta_random",
                                         label = "% of the days",
                                         value = 2),
-                           dateInput("dia_fin","End day",value="2017-12-01")
+                           dateInput("dia_fin","End day",format = "yyyy-mm-dd",value="2017-12-01")
                            
                     ),
                     verbatimTextOutput("resultado_random")
@@ -91,6 +90,9 @@ ui <- dashboardPage(
 server <- function(input, output) {
   
   
+  valores <- reactiveValues(
+    
+  )
   
   dataInput <- reactive({
     getSymbols(input$stocks, src = "yahoo", 
@@ -99,12 +101,43 @@ server <- function(input, output) {
                auto.assign = FALSE)
   })
   
+  observeEvent(input$Run_random,{
+    
+  })
+  
+  output$resultado_random <- renderText({
+    df_precios_medios <- ((dataInput()[paste(input$dia_comienzo,input$dia_fin,sep="/")][,2]+
+                           dataInput()[paste(input$dia_comienzo,input$dia_fin,sep="/")][,3])/2)
+    numero_dias <- nrow(df_precios_medios)
+    dias_compra <- sample(numero_dias,numero_dias*(input$porcentaje_dias_compra_random/100))
+    df_compra <- df_precios_medios[c(dias_compra),]* input$cantidad_compra_random
+    precio_compra_medio <- sum(df_compra)/(input$cantidad_compra_random*(numero_dias*(input$porcentaje_dias_compra_random/100)))
+    
+    dias_venta <- sample(numero_dias,numero_dias*(input$porcentaje_dias_venta_random/100))
+    df_ventas <- df_precios_medios[c(dias_venta),]* input$cantidad_venta_random
+    precio_venta_medio <- sum(df_ventas)/(input$cantidad_venta_random*(numero_dias*(input$porcentaje_dias_venta_random/100)))
+    
+    resultado_rd <- (precio_venta_medio-precio_compra_medio)*(numero_dias*(input$porcentaje_dias_venta_random/100))
+    print(resultado_rd)
+    
+  })
+
+  output$resultado_limits <- renderText({
+    importe_compra_limits <- input$precio_compra_limits1 * input$cantidad_compra_limits1 + input$precio_compra_limits2 * input$cantidad_compra_limits2
+    importe_venta_limits <-  input$precio_venta_limits * (input$cantidad_compra_limits1+input$cantidad_compra_limits2)
+    resultado_lm <- importe_venta_limits - importe_compra_limits
+    print(resultado_lm)
+    
+  })
+  
   
   output$plot <- renderPlot({
     
-    chartSeries(dataInput(), theme = chartTheme("white"),name=valores_ibex[valores_ibex[,2]== input$stocks,1],
+    chartSeries(dataInput()[,4], theme = chartTheme("white"),name=valores_ibex[valores_ibex[,2]== input$stocks,1],
                 type = "line", TA = NULL)
   })
+  
+  
   
 }
 
