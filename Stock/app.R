@@ -63,8 +63,8 @@ ui <- dashboardPage(
                   fluidRow(
                     column(12,numericInput("precio_venta_limits",
                                            label = "Sell when stock price reaches",
-                                           value = 10)),
-                    column(4,
+                                           value = 6)),
+                    column(6,
                            numericInput("cantidad_compra_limits1",
                                         label = "Buy",
                                         value = 5),
@@ -72,13 +72,14 @@ ui <- dashboardPage(
                                         label = "Buy",
                                         value = 5),
                            actionButton("Run_limit","Run")),
-                    column(8, 
+                    column(6, 
                            numericInput("precio_compra_limits1",
                                         label = "When stock price reaches",
                                         value = 5),
                            numericInput("precio_compra_limits2",
                                         label = "When stock price reaches",
                                         value = 5)
+                           
                     ),
                     verbatimTextOutput("resultado_limits")
                   ))))
@@ -100,190 +101,160 @@ server <- function(input, output) {
                auto.assign = FALSE)
   })
   
-  observeEvent(input$Run_random,{
-    valores$random <- rnorm(1)
-  })
+  dataset_precios <- function(dataset,inicio,fin){
+    #xts con los precios medios de cada día del periodo de la estrategia aleatoria
+    df_precios <- ((dataset[paste(inicio,fin,sep="/")][,2]+
+                      dataset[paste(inicio,fin,sep="/")][,3])/2)
+    return(df_precios)
+  }
   
-  observeEvent(input$Run_limit,{
-    valores$limit <- rnorm(1)
-  })
-  
-  output$resultado_random <- renderText({
-    #creamos un xts con los precios medios de cada día del periodo de la estrategia aleatoria
-    #Hemos considerado los precios medios como la media entre el precio mínimo y el precio máximo
-    #(Columnas 2 y 3) del objeto reactivo dataInput
-    df_precios_medios <- ((dataInput()[paste(isolate(input$dia_comienzo),isolate(input$dia_fin),sep="/")][,2]+
-                             dataInput()[paste(isolate(input$dia_comienzo),isolate(input$dia_fin),sep="/")][,3])/2)
+  precios_aleatorios <- function(df,porcentaje,cantidad){
+    
     #contamos el numero de dias que tiene la estategia aleatoria
-    numero_dias <- nrow(df_precios_medios)
-    #Hacemos un muestreo del numero de dias de compra
-    #en funcion del porcentaje de dias de compra definido por el usuario
-    dias_compra <- sample(numero_dias,numero_dias*(isolate(input$porcentaje_dias_compra_random)/100))
-    #del xts df precios medios nos quedamos solo con los precios medios de los dias muestreados
-    #los multiplicamos por la cantidad de compra definida por el usuario
-    #de esta manera obtenemos el importe comprado cada dia
-    df_compra <- df_precios_medios[c(dias_compra),]* isolate(input$cantidad_compra_random)
-    #Calculamos el precio medio de compra como la suma de las cantidades compradas cada dia
-    #dividido entre el numero de dias que se han comprado acciones
-    precio_compra_medio <- sum(df_compra)/(isolate(input$cantidad_compra_random)*(numero_dias*(isolate(input$porcentaje_dias_compra_random)/100)))
+    numero_dias <- nrow(df)
     
-    #Hacemos un muestreo del numero de dias de venta
-    #en funcion del porcentaje de dias de compra definido por el usuario
-    dias_venta <- sample(numero_dias,numero_dias*(isolate(input$porcentaje_dias_venta_random)/100))
-    #del xts df precios medios nos quedamos solo con los precios medios de los dias muestreados
-    #los multiplicamos por la cantidad de venta definida por el usuario
-    #de esta manera obtenemos el importe vendido cada dia
-    df_ventas <- df_precios_medios[c(dias_venta),]* isolate(input$cantidad_venta_random)
-    #Calculamos el precio medio de venta como la suma de las cantidades vendidas cada dia
-    #dividido entre el numero de dias que se han vendido acciones
-    precio_venta_medio <- sum(df_ventas)/(isolate(input$cantidad_venta_random)*(numero_dias*(isolate(input$porcentaje_dias_venta_random)/100)))
+    #total dias = numero dias por porcentaje de dias
+    total_dias <- numero_dias* (porcentaje/100)
     
-    #El resultado de esta estrategia es la diferencia entre el precio medio de venta y el precio medio compra
-    #multiplicado por el numero de dias que se han realizado ventas
-    #no hemos tenido en cuenta para este analisis si hay titulos por vender (posicion larga del usuario) o 
-    #si por el contrario se han vendido mas títulos de los comprados (posicion corta)
-    resultado_rd <- (precio_venta_medio-precio_compra_medio)*(numero_dias*(isolate(input$porcentaje_dias_venta_random)/100))
+    #muestreo del numero de dias da en funcion del porcentaje de dias de compra
+    dias_muestreo <- sample(numero_dias,total_dias)
     
-    #Cuando el usuario utilice el action button se hara un print del resultado obtenido con esta estrategia
-    if (!is.null(valores$random)){
-      print(paste0("You would gain/loss"," ",resultado_rd,"€"))
-    }
+    #importe = precios dia por la cantidad fijada
+    df_cantidades <- df[c(dias_muestreo),]* cantidad
     
+    #precio medio =  suma cantidade dividido numero de dias
+    precio_medio <- sum(df_cantidades)/(cantidad*total_dias) 
     
-  })
+    return(list(pvp_medio = precio_medio,importe_total = sum(df_cantidades),dias=total_dias))
+  }
   
-  output$resultado_limits <- renderText({
+  estrategia_aleatoria <- function(bbdd,dia_inicial,dia_final,porcentaje_dias_compra,
+                                   cantidad_compra_rd,porcentaje_dias_venta,cantidad_venta_rd){
     
-    #Almacenamos el precio medio de la sesion en un DF, hemos definido el precio medio como la media entre el precio mínimo y el maximo.
-    #
-    df_precios_limits <- na.omit((dataInput()[,2]+dataInput()[,3])/2)
+    df_aleatorio <- dataset_precios(dataset= bbdd,inicio=dia_inicial,fin=dia_final)
     
-    #Hacemos un bucle para encontrar los dias en los que el precio se encuentra dentro del intervalo de compra 
-    #definido por el usuario. Consideramos que el precio se encuentra en dicho intervalo cuando el día anterior tenia un precio superior
-    #al definido por el usuario y el día siguiente tiene el precio igual o inferior al precio buscado
-    #almacenamos en un vector todos los días en los que se cumple la condicion definida
+    compra <- precios_aleatorios(df = df_aleatorio,
+                                 porcentaje = porcentaje_dias_compra,
+                                 cantidad = cantidad_compra_rd)
     
-    fechas_umbral_compra_limits1 <- NULL
+    venta <- precios_aleatorios(df = df_aleatorio ,
+                                porcentaje= porcentaje_dias_venta,
+                                cantidad = cantidad_venta_rd)
+    
+    resultado_rd <- round((venta$pvp_medio - compra$pvp_medio)*venta$dias,0)
+    
+    Posicion_neta <- -round(venta$importe_total-compra$importe_total,0)
+    
+    print(paste0("You would gain/loss"," ",resultado_rd," and the net position is"," ",Posicion_neta))
+  }
+  
+  
+  Umbrales_compra <- function(df_precios_limits,precio){
+    umbral <- NULL
     for (i in (2:nrow(df_precios_limits))){
       contador1 <- i-1
-      if (df_precios_limits[i,] <= isolate(input$precio_compra_limits1) && df_precios_limits[contador1,] > isolate(input$precio_compra_limits1)){
-        fechas_umbral_compra_limits1 <- c(fechas_umbral_compra_limits1,i)
+      if (df_precios_limits[i,] <= precio && df_precios_limits[contador1,] > precio){
+        umbral <- c(umbral,i)
       }
     }
-    
-    #Hacemos el mismo bucle que en el anterior caso pero para el segundo precio establecido por el usuario
-    
-    fechas_umbral_compra_limits2 <- NULL
-    for (j in (2:nrow(df_precios_limits))){
-      contador2 <- j-1
-      if (df_precios_limits[j,] <= isolate(input$precio_compra_limits2) && df_precios_limits[contador2,] > isolate(input$precio_compra_limits2)){
-        fechas_umbral_compra_limits2 <- c(fechas_umbral_compra_limits2,j)
-      }}
-    
-    #Hacemos un bucle para encontrar los dias en los que el precio se encuentra dentro del intervalo de venta 
-    #definido por el usuario. Consideramos que el precio se encuentra en dicho intervalo cuando el día anterior tenia un precio inferior
-    #al definido por el usuario y el día siguiente tiene el precio igual o superior al precio buscado
-    #almacenamos en un vector todos los días en los que se cumple la condicion definida
-    
-    fechas_umbral_venta_limits <- NULL
+    return(umbral)
+  }
+  
+  Umbrales_venta <- function(df_precios_limits,precio){
+    umbral <- NULL
     for (k in (2:nrow(df_precios_limits))){
-      contador3 <- k-1
-      if (df_precios_limits[k,] >= isolate(input$precio_venta_limits) && df_precios_limits[contador3,] < isolate(input$precio_venta_limits)){
-        fechas_umbral_venta_limits <- c(fechas_umbral_venta_limits,k)
+      contador2 <- k-1
+      if (df_precios_limits[k,] >= precio && df_precios_limits[contador2,] < precio){
+        umbral <- c(umbral,k)
       }}
+    return(umbral)
+  }
+  
+  
+  Resultado_limits <- function(df_precios_limits,umbral_venta,umbral_compra,cantidad_compra){
     
-    #Definimos los valores, vectores y contadores que vamos a utilizar en el bucle de obtencion del resultado
-    #de la estrategia limits
+    contador <- 1
+    contador_compra <- c(1)
+    precios <- NULL
+    vector_compras <- NULL
+    vector_total_compras <- NULL
+    vector_ventas <- NULL
+    vector_compras_totales <- NULL
+    resultado_neto <- NULL
     
-    resultado_neto_1 <- NULL
-    resultado_neto_2 <- NULL
-    resultado_ventas_1 <- NULL
-    resultado_ventas_2 <- NULL
-    total_compra_limits_1 <- NULL
-    total_compra_limits_2 <- NULL
-    resultado_ventas <- NULL
-    contador_1 <- 1
-    contador_compra_1 <- c(1)
-    contador_compra_2 <- c(1)
-    contador_while_1 <- 0
-    contador_while_2 <- 0
-    contador_2 <- 1
-    resultado <- NULL
-    precios_compra_limits2 <- NULL
-    importe_compra_limits2 <- NULL
-    cantidad_total_compra_limits2 <- NULL
-    precios_compra_limits1 <- NULL
-    importe_compra_limits1 <- NULL
-    cantidad_total_compra_limits1 <- NULL
-    
-    
-    #El siguiente bucle tiene como objetivo obtener el resultado de la estrategia de inversion de acuerdo 
-    #a los precios de compra y venta definidos
-    #el primer bucle for recorre todos los elementos del vector con las fechas de venta
-    #dentro de dicho bucle hay a su vez dos while(estructura identica): el primero para el precio de compra 1 y el segundo para el precio de compra 2.
-    #el bucle se ejecuta siempre y cuando la fecha de venta sea superior a la de compra (no tiene sentido vender unos titulos que no tienes comprado)
-    #dentro de ese while hay un for para que vaya recorriendo cada elemento del vector de fechas de compra 1
-    #siempre y cuando la fecha de venta sea superior a la fecha de compra
-    #se registra una cantidad de compra y un importe total de compra (precio de compra del dia por la cantidad comprada)
-    #se hace el mismo proceso para el precio de compra 2.
-    #Finalmente para cada fecha de venta se obtiene el resultado de la siguiente manera:
-    #Resultado para los titulos comprados precio 1:
-    #Numero de titulos comprados * precio venta - importe total de compra
-    #Resultado para los titlos comprados precio 2:
-    #Numero de titulos comprados * precio venta - importe total de compra
-    #Finalmente se suman los resultados para todas las fechas de venta
-    #y se obtiene el resultado final
-    
-    for (l in (1:length(fechas_umbral_venta_limits))){
-      while(fechas_umbral_venta_limits[l] > fechas_umbral_compra_limits1[contador_1] && 
-            contador_1<length(fechas_umbral_compra_limits1+2)){
-        for (t in (1:length(fechas_umbral_compra_limits1))){
-          if(fechas_umbral_venta_limits[l] > fechas_umbral_compra_limits1[t]){
-            precios_compra_limits1 <- c(precios_compra_limits1,df_precios_limits[fechas_umbral_compra_limits1[t],])
-            cantidad_total_compra_limits1 <- c(cantidad_total_compra_limits1,isolate(input$cantidad_compra_limits1))
-            importe_compra_limits1 <- c(importe_compra_limits1, precios_compra_limits1[t]*isolate(input$cantidad_compra_limits1))
-            contador_1 <- contador_1 +1
+    for (l in (1:length(umbral_venta))){
+      while(umbral_venta[l] > umbral_compra[contador] && 
+            contador<length(umbral_compra+2)){
+        for (t in (1:length(umbral_compra))){
+          if(umbral_venta[l] > umbral_compra[t]){
+            precios <- c(precios,df_precios_limits[umbral_compra[t],])
+            vector_compras <- c(vector_compras,cantidad_compra)
+            vector_total_compras <- c(vector_total_compras, 
+                                      precios[t]*cantidad_compra)
+            contador <- contador +1
           }
         }
-        contador_while_1 <- contador_while_1+1
-        contador_compra_1 <- c(contador_compra_1,length(importe_compra_limits1))
+        contador_compra <- c(contador_compra,length(vector_total_compras))
       }
-      while(fechas_umbral_venta_limits[l] > fechas_umbral_compra_limits2[contador_2] && 
-            contador_2<length(fechas_umbral_compra_limits2+2)){
-        for (t in (1:length(fechas_umbral_compra_limits2))){
-          if(fechas_umbral_venta_limits[l] > fechas_umbral_compra_limits2[t]){
-            precios_compra_limits2 <- c(precios_compra_limits2,df_precios_limits[fechas_umbral_compra_limits2[t],])
-            cantidad_total_compra_limits2 <- c(cantidad_total_compra_limits2,isolate(input$cantidad_compra_limits2))
-            importe_compra_limits2 <- c(importe_compra_limits2, precios_compra_limits2[t]*isolate(input$cantidad_compra_limits2))
-            contador_2 <- contador_2 +1
-          }
-        }
-        contador_while_2 <- contador_while_2+1
-        contador_compra_2 <- c(contador_compra_2,length(importe_compra_limits2))
+      if(length(contador_compra)>l){
+        vector_ventas <- c(vector_ventas,sum(vector_compras[contador_compra[l+1]-
+                                                              contador_compra[l]+1])*
+                             df_precios_limits[umbral_venta[l],])
+        vector_compras_totales <- c(vector_compras_totales,
+                                    sum(vector_total_compras[contador_compra[l+1]
+                                                             -contador_compra[l]+1]))
+        resultado_neto <- c(resultado_neto,vector_ventas[l]-vector_compras_totales [l])
       }
+    }
+    return(resultado_neto)
+  }
+  
+  estrategia_limits <- function(bbdd,dia_inicial,dia_final,
+                                precio_compra1,precio_compra2,
+                                precio_venta,cantidad_compra1,cantidad_compra2){
+    
+    
+    umbral_compra1 <- Umbrales_compra(df_precios_limits = bbdd,precio = precio_compra1) 
+    umbral_compra2 <- Umbrales_compra(df_precios_limits = bbdd,precio = precio_compra2)
+    umbral_ventas <- Umbrales_venta(df_precios_limits = bbdd,precio = precio_venta)
+
+    Resultado_1 <- Resultado_limits(df_precios_limits =bbdd,umbral_venta = umbral_ventas,
+                                    umbral_compra = umbral_compra1,cantidad_compra = cantidad_compra1)
+    Resultado_2 <- Resultado_limits(df_precios_limits =bbdd,umbral_venta = umbral_ventas,
+                                    umbral_compra = umbral_compra2,cantidad_compra = cantidad_compra2)
       
-      if(length(contador_compra_1)>l){
-        resultado_ventas_1 <- c(resultado_ventas_1,sum(cantidad_total_compra_limits1[contador_compra_1[l+1]-contador_compra_1[l]+1])* df_precios_limits[fechas_umbral_venta_limits[l],])
-        total_compra_limits_1 <- c(total_compra_limits_1,sum(importe_compra_limits1[contador_compra_1[l+1]-contador_compra_1[l]+1]))
-        resultado_neto_1 <- c(resultado_neto_1,resultado_ventas_1[l]-total_compra_limits_1[l])
-      }
-      if(length(contador_compra_1)>l){
-        resultado_ventas_2 <- c(resultado_ventas_2,sum(cantidad_total_compra_limits2[contador_compra_2[l+1]-contador_compra_2[l]+1])* df_precios_limits[fechas_umbral_venta_limits[l],])
-        total_compra_limits_2 <- c(total_compra_limits_2,sum(importe_compra_limits2[contador_compra_2[l+1]-contador_compra_2[l]+1]))
-        resultado_neto_2 <- c(resultado_neto_2,resultado_ventas_2[l]-total_compra_limits_2[l])
-      }
-    }
+    resultado_total <- sum(Resultado_1) + sum(Resultado_2)
     
-    resultado_total <- sum(resultado_neto_1) + sum(resultado_neto_2)
+    print(paste0("You would gain/loss"," ",round(resultado_total,2),"€"))
     
-    
-    
-    #Cuando el usuario utilice el action button se hara un print del resultado obtenido con esta estrategia
-    if (!is.null(valores$limit)){
-      print(paste0("You would gain/loss"," ",round(resultado_total,2),"€"))
-    }
-    
+  }
+  
+  
+  observeEvent(input$Run_random,{
+    output$resultado_random <- renderText({
+      
+      estrategia_aleatoria(bbdd= dataInput(),
+                           dia_inicial = isolate(input$dia_comienzo),
+                           dia_final = isolate(input$dia_fin),
+                           porcentaje_dias_compra= isolate(input$porcentaje_dias_compra_random) ,
+                           cantidad_compra_rd = isolate(input$cantidad_compra_random),
+                           porcentaje_dias_venta = isolate(input$porcentaje_dias_venta_random),
+                           cantidad_venta_rd = isolate(input$cantidad_venta_random))
+    })
   })
+  
+  
+  observeEvent(input$Run_limit,{
+    
+    output$resultado_limits <- renderText(
+      estrategia_limits(bbdd = dataInput(),precio_compra1 = isolate(input$precio_compra_limits1),
+                        precio_compra2 = isolate(input$precio_compra_limits2),
+                        precio_venta= isolate(input$precio_venta_limits),
+                        cantidad_compra1 =isolate(input$cantidad_compra_limits1),
+                        cantidad_compra2 = isolate(input$cantidad_compra_limits2))
+    )
+    })
+  
   
   output$plot <- renderPlot({
     
