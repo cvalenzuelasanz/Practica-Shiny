@@ -15,7 +15,7 @@ nombres <- valores_ibex[,1]
 valores <- valores_ibex[,2]
 
 ui <- dashboardPage(
-  dashboardHeader(),
+  dashboardHeader(title = "Simulador de stock"),
   dashboardSidebar(
     selectInput(inputId = "stocks",
                 label = "Select stock",
@@ -43,7 +43,7 @@ ui <- dashboardPage(
                            numericInput("cantidad_venta_random",
                                         label = "Sell",
                                         value = 5),
-                           dateInput("dia_comienzo","start day",format = "yyyy-mm-dd",value="2017-01-01"),
+                           dateInput("dia_comienzo","start day",format = "yyyy-mm-dd",value="2015-01-01"),
                            actionButton("Run_random","Run")
                     ),
                     column(6,numericInput("porcentaje_dias_compra_random",
@@ -91,9 +91,6 @@ ui <- dashboardPage(
 
 server <- function(input, output) {
   
-  
-  valores <- reactiveValues(random= NULL,limit= NULL)
-  
   dataInput <- reactive({
     getSymbols(input$stocks, src = "yahoo", 
                from = input$dates[1],
@@ -102,9 +99,8 @@ server <- function(input, output) {
   })
   
   dataset_precios <- function(dataset,inicio,fin){
-    #xts con los precios medios de cada día del periodo de la estrategia aleatoria
-    df_precios <- ((dataset[paste(inicio,fin,sep="/")][,2]+
-                      dataset[paste(inicio,fin,sep="/")][,3])/2)
+    #xts con los precios de cierre de cada día del periodo de la estrategia aleatoria
+    df_precios <- (dataset[paste(inicio,fin,sep="/")][,4])
     return(df_precios)
   }
   
@@ -123,9 +119,9 @@ server <- function(input, output) {
     df_cantidades <- df[c(dias_muestreo),]* cantidad
     
     #precio medio =  suma cantidade dividido numero de dias
-    precio_medio <- sum(df_cantidades)/(cantidad*total_dias) 
+    precio_medio <- sum(df_cantidades[,1])/(cantidad*total_dias) 
     
-    return(list(pvp_medio = precio_medio,importe_total = sum(df_cantidades),dias=total_dias))
+    return(list(pvp_medio = precio_medio,importe_total = sum(df_cantidades[,1]),dias=total_dias))
   }
   
   estrategia_aleatoria <- function(bbdd,dia_inicial,dia_final,porcentaje_dias_compra,
@@ -141,7 +137,7 @@ server <- function(input, output) {
                                 porcentaje= porcentaje_dias_venta,
                                 cantidad = cantidad_venta_rd)
     
-    resultado_rd <- round((venta$pvp_medio - compra$pvp_medio)*venta$dias,0)
+    resultado_rd <- round((venta$pvp_medio - compra$pvp_medio)*venta$dias*cantidad_venta_rd,0)
     
     Posicion_neta <- -round(venta$importe_total-compra$importe_total,0)
     
@@ -150,22 +146,19 @@ server <- function(input, output) {
   
   
   Umbrales_compra <- function(df_precios_limits,precio){
-    contador_1 <- 1
     umbral <- NULL
-    for (i in (2:nrow(df_precios_limits))){
-      if ((df_precios_limits[i,] <= precio) && (df_precios_limits[contador_1,] > precio)){
+    for (i in (1:nrow(df_precios_limits))){
+      if (df_precios_limits[i,] <= precio){
         umbral <- c(umbral,i)
       }
-      contador_1 <- contador_1 + 1 
     }
     return(umbral)
   }
   
   Umbrales_venta <- function(df_precios_limits,precio){
     umbral <- NULL
-    for (k in (2:nrow(df_precios_limits))){
-      contador2 <- k-1
-      if ((df_precios_limits[k,] >= precio) && (df_precios_limits[contador2,] < precio)){
+    for (k in (1:nrow(df_precios_limits))){
+      if (df_precios_limits[k,] >= precio){
         umbral <- c(umbral,k)
       }}
     return(umbral)
@@ -214,13 +207,13 @@ server <- function(input, output) {
                                 precio_venta,cantidad_compra1,cantidad_compra2){
     
     
-    umbral_compra1 <- Umbrales_compra(df_precios_limits = bbdd,precio = precio_compra1) 
-    umbral_compra2 <- Umbrales_compra(df_precios_limits = bbdd,precio = precio_compra2)
-    umbral_ventas <- Umbrales_venta(df_precios_limits = bbdd,precio = precio_venta)
+    umbral_compra1 <- Umbrales_compra(df_precios_limits = bbdd[,4],precio = precio_compra1) 
+    umbral_compra2 <- Umbrales_compra(df_precios_limits = bbdd[,4],precio = precio_compra2)
+    umbral_ventas <- Umbrales_venta(df_precios_limits = bbdd[,4],precio = precio_venta)
     
-    Resultado_1 <- Resultado_limits(df_precios_limits =bbdd,umbral_venta = umbral_ventas,
+    Resultado_1 <- Resultado_limits(df_precios_limits =bbdd[,4],umbral_venta = umbral_ventas,
                                     umbral_compra = umbral_compra1,cantidad_compra = cantidad_compra1)
-    Resultado_2 <- Resultado_limits(df_precios_limits =bbdd,umbral_venta = umbral_ventas,
+    Resultado_2 <- Resultado_limits(df_precios_limits =bbdd[,4],umbral_venta = umbral_ventas,
                                     umbral_compra = umbral_compra2,cantidad_compra = cantidad_compra2)
     
     resultado_total <- sum(Resultado_1) + sum(Resultado_2)
