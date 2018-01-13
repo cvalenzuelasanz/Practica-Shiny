@@ -145,6 +145,7 @@ server <- function(input, output) {
   }
   
   
+  #Funcion ara encontrar los dias en los que el precio se encuentra dentro del intervalo de compra
   Umbrales_compra <- function(df_precios_limits,precio){
     umbral <- NULL
     for (i in (1:nrow(df_precios_limits))){
@@ -155,6 +156,7 @@ server <- function(input, output) {
     return(umbral)
   }
   
+  #Funcion ara encontrar los dias en los que el precio se encuentra dentro del intervalo de venta
   Umbrales_venta <- function(df_precios_limits,precio){
     umbral <- NULL
     for (k in (1:nrow(df_precios_limits))){
@@ -164,7 +166,8 @@ server <- function(input, output) {
     return(umbral)
   }
   
-  
+  #La siguiente funcion obtiene el resultado de la estrategia de inversion de acuerdo a los
+  #umbrales de compra y venta y de las cantidades de compra establecidad
   Resultado_limits <- function(df_precios_limits,umbral_venta,umbral_compra,cantidad_compra){
     
     contador <- 1
@@ -175,6 +178,12 @@ server <- function(input, output) {
     vector_ventas <- NULL
     vector_compras_totales <- NULL
     resultado_neto <- NULL
+    
+    #siempre y cuando la fecha de venta sea posterior a la fecha de compra
+    #se registra el importe total de compra (precio por cantidad)
+    #Definimos el resultado de venta como la diferencia entre cantidad compra
+    #y la cantidad vendida
+
     
     for (l in (1:length(umbral_venta))){
       while(umbral_venta[l] > umbral_compra[contador] && 
