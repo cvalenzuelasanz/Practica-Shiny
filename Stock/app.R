@@ -20,7 +20,7 @@ ui <- dashboardPage(
     selectInput(inputId = "stocks",
                 label = "Select stock",
                 choices = list(nombres = valores),
-                selected = 1),
+                selected = 4),
     dateRangeInput("dates", 
                    "Date range",
                    start = "2013-01-01", 
@@ -63,22 +63,22 @@ ui <- dashboardPage(
                   fluidRow(
                     column(12,numericInput("precio_venta_limits",
                                            label = "Sell when stock price reaches",
-                                           value = 6)),
+                                           value = 11)),
                     column(6,
                            numericInput("cantidad_compra_limits1",
                                         label = "Buy",
-                                        value = 5),
+                                        value = 5000),
                            numericInput("cantidad_compra_limits2",
                                         label = "Buy",
-                                        value = 5),
+                                        value = 5000),
                            actionButton("Run_limit","Run")),
                     column(6, 
                            numericInput("precio_compra_limits1",
                                         label = "When stock price reaches",
-                                        value = 5),
+                                        value = 10),
                            numericInput("precio_compra_limits2",
                                         label = "When stock price reaches",
-                                        value = 5)
+                                        value = 9)
                            
                     ),
                     verbatimTextOutput("resultado_limits")
@@ -150,12 +150,13 @@ server <- function(input, output) {
   
   
   Umbrales_compra <- function(df_precios_limits,precio){
+    contador_1 <- 1
     umbral <- NULL
     for (i in (2:nrow(df_precios_limits))){
-      contador1 <- i-1
-      if (df_precios_limits[i,] <= precio && df_precios_limits[contador1,] > precio){
+      if ((df_precios_limits[i,] <= precio) && (df_precios_limits[contador_1,] > precio)){
         umbral <- c(umbral,i)
       }
+      contador_1 <- contador_1 + 1 
     }
     return(umbral)
   }
@@ -164,7 +165,7 @@ server <- function(input, output) {
     umbral <- NULL
     for (k in (2:nrow(df_precios_limits))){
       contador2 <- k-1
-      if (df_precios_limits[k,] >= precio && df_precios_limits[contador2,] < precio){
+      if ((df_precios_limits[k,] >= precio) && (df_precios_limits[contador2,] < precio)){
         umbral <- c(umbral,k)
       }}
     return(umbral)
@@ -209,51 +210,51 @@ server <- function(input, output) {
     return(resultado_neto)
   }
   
-  estrategia_limits <- function(bbdd,dia_inicial,dia_final,
-                                precio_compra1,precio_compra2,
+  estrategia_limits <- function(bbdd,precio_compra1,precio_compra2,
                                 precio_venta,cantidad_compra1,cantidad_compra2){
     
     
     umbral_compra1 <- Umbrales_compra(df_precios_limits = bbdd,precio = precio_compra1) 
     umbral_compra2 <- Umbrales_compra(df_precios_limits = bbdd,precio = precio_compra2)
     umbral_ventas <- Umbrales_venta(df_precios_limits = bbdd,precio = precio_venta)
-
+    
     Resultado_1 <- Resultado_limits(df_precios_limits =bbdd,umbral_venta = umbral_ventas,
                                     umbral_compra = umbral_compra1,cantidad_compra = cantidad_compra1)
     Resultado_2 <- Resultado_limits(df_precios_limits =bbdd,umbral_venta = umbral_ventas,
                                     umbral_compra = umbral_compra2,cantidad_compra = cantidad_compra2)
-      
+    
     resultado_total <- sum(Resultado_1) + sum(Resultado_2)
     
-    print(paste0("You would gain/loss"," ",round(resultado_total,2),"€"))
+    print(paste0("You would gain/loss"," ",round(resultado_total,2)))
     
   }
   
   
   observeEvent(input$Run_random,{
-    output$resultado_random <- renderText({
+    output$resultado_random <- renderText(
       
-      estrategia_aleatoria(bbdd= dataInput(),
+      estrategia_aleatoria(bbdd= isolate(dataInput()),
                            dia_inicial = isolate(input$dia_comienzo),
                            dia_final = isolate(input$dia_fin),
                            porcentaje_dias_compra= isolate(input$porcentaje_dias_compra_random) ,
                            cantidad_compra_rd = isolate(input$cantidad_compra_random),
                            porcentaje_dias_venta = isolate(input$porcentaje_dias_venta_random),
                            cantidad_venta_rd = isolate(input$cantidad_venta_random))
-    })
+    )
   })
   
   
   observeEvent(input$Run_limit,{
     
     output$resultado_limits <- renderText(
-      estrategia_limits(bbdd = dataInput(),precio_compra1 = isolate(input$precio_compra_limits1),
+      estrategia_limits(bbdd = isolate(dataInput()),
+                        precio_compra1 = isolate(input$precio_compra_limits1),
                         precio_compra2 = isolate(input$precio_compra_limits2),
                         precio_venta= isolate(input$precio_venta_limits),
                         cantidad_compra1 =isolate(input$cantidad_compra_limits1),
                         cantidad_compra2 = isolate(input$cantidad_compra_limits2))
     )
-    })
+  })
   
   
   output$plot <- renderPlot({
