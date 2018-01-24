@@ -183,7 +183,7 @@ server <- function(input, output) {
     #se registra el importe total de compra (precio por cantidad)
     #Definimos el resultado de venta como la diferencia entre cantidad compra
     #y la cantidad vendida
-
+    
     
     for (l in (1:length(umbral_venta))){
       while(umbral_venta[l] > umbral_compra[contador] && 
@@ -215,14 +215,13 @@ server <- function(input, output) {
   estrategia_limits <- function(bbdd,precio_compra1,precio_compra2,
                                 precio_venta,cantidad_compra1,cantidad_compra2){
     
+    umbral_compra1 <- Umbrales_compra(df_precios_limits = bbdd,precio = precio_compra1) 
+    umbral_compra2 <- Umbrales_compra(df_precios_limits = bbdd,precio = precio_compra2)
+    umbral_ventas <- Umbrales_venta(df_precios_limits = bbdd,precio = precio_venta)
     
-    umbral_compra1 <- Umbrales_compra(df_precios_limits = bbdd[,4],precio = precio_compra1) 
-    umbral_compra2 <- Umbrales_compra(df_precios_limits = bbdd[,4],precio = precio_compra2)
-    umbral_ventas <- Umbrales_venta(df_precios_limits = bbdd[,4],precio = precio_venta)
-    
-    Resultado_1 <- Resultado_limits(df_precios_limits =bbdd[,4],umbral_venta = umbral_ventas,
+    Resultado_1 <- Resultado_limits(df_precios_limits =bbdd,umbral_venta = umbral_ventas,
                                     umbral_compra = umbral_compra1,cantidad_compra = cantidad_compra1)
-    Resultado_2 <- Resultado_limits(df_precios_limits =bbdd[,4],umbral_venta = umbral_ventas,
+    Resultado_2 <- Resultado_limits(df_precios_limits =bbdd,umbral_venta = umbral_ventas,
                                     umbral_compra = umbral_compra2,cantidad_compra = cantidad_compra2)
     
     resultado_total <- sum(Resultado_1) + sum(Resultado_2)
@@ -235,7 +234,7 @@ server <- function(input, output) {
   observeEvent(input$Run_random,{
     output$resultado_random <- renderText(
       
-      estrategia_aleatoria(bbdd= isolate(dataInput()),
+      estrategia_aleatoria(bbdd= isolate(na.omit(dataInput())),
                            dia_inicial = isolate(input$dia_comienzo),
                            dia_final = isolate(input$dia_fin),
                            porcentaje_dias_compra= isolate(input$porcentaje_dias_compra_random) ,
@@ -248,14 +247,24 @@ server <- function(input, output) {
   
   observeEvent(input$Run_limit,{
     
-    output$resultado_limits <- renderText(
-      estrategia_limits(bbdd = isolate(dataInput()),
-                        precio_compra1 = isolate(input$precio_compra_limits1),
-                        precio_compra2 = isolate(input$precio_compra_limits2),
-                        precio_venta= isolate(input$precio_venta_limits),
-                        cantidad_compra1 =isolate(input$cantidad_compra_limits1),
-                        cantidad_compra2 = isolate(input$cantidad_compra_limits2))
-    )
+    output$resultado_limits <- renderText({
+      
+      if ((isolate(input$precio_compra_limits1) > max(isolate(na.omit(dataInput()[,4])))) |
+           (isolate(input$precio_compra_limits2) >max(isolate(na.omit(dataInput()[,4])))) |
+           (isolate(input$precio_venta_limits) < min(isolate(na.omit(dataInput()[,4])))))
+        {
+        showNotification("Los limites indtroducidos no son correctos")
+        return()
+      }
+      else{
+        estrategia_limits(bbdd = isolate(na.omit(dataInput()[,4])),
+                          precio_compra1 = isolate(input$precio_compra_limits1),
+                          precio_compra2 = isolate(input$precio_compra_limits2),
+                          precio_venta= isolate(input$precio_venta_limits),
+                          cantidad_compra1 =isolate(input$cantidad_compra_limits1),
+                          cantidad_compra2 = isolate(input$cantidad_compra_limits2))
+      }
+      })
   })
   
   
@@ -269,4 +278,3 @@ server <- function(input, output) {
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
