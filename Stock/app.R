@@ -9,7 +9,7 @@ library(readxl)
 
 #Definimos las fechas del historico
 
-valores_ibex <- read_excel("C:/Users/valen/Desktop/Master Datascience/Visualizacion/Practicas/Stock/MscDatascience/Stock/Valores IBEX.xlsx", col_names = FALSE)
+valores_ibex <- read_excel("Valores IBEX.xlsx", col_names = FALSE)
 valores_ibex <- as.data.frame(valores_ibex)
 nombres <- valores_ibex[,1]
 valores <- valores_ibex[,2]
